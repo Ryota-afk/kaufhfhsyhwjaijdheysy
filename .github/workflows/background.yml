@@ -1,0 +1,20 @@
+# 裏の計算。毎日決まった時刻に動く。
+# 段階0では中身は空（動いた時刻を記録するだけ）。段階5・6で計算を足す。
+# 1回の作業は GitHub の上限（6時間）より短い5時間半で打ち切る。
+name: 裏の計算
+on:
+  schedule:
+    - cron: '47 15 * * *'   # 毎日 15:47（世界標準時）＝ 日本時間 0:47
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - name: 動いた時刻を記録
+        run: |
+          echo "起動のきっかけ: ${{ github.event_name }}"
+          echo "時刻（世界標準時）: $(date -u '+%Y-%m-%d %H:%M:%S')"
