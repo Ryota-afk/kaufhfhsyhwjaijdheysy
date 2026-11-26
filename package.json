@@ -12,7 +12,8 @@
     "gen:data": "tsx tools/gen-data.ts",
     "seed:check": "tsx tools/seed-check.ts",
     "bench": "tsx tools/bench.ts",
-    "compare": "tsx tools/compare/run.ts"
+    "compare": "tsx tools/compare/run.ts",
+    "rules": "tsx tools/compare/rules.ts ref && tsx tools/compare/rules.ts fast && tsx tools/compare/rules-report.ts"
   },
   "devDependencies": {
     "@types/node": "22.19.1",

@@ -14,6 +14,11 @@ npm test
 npm run build
 npm run showdown:setup   # 照合の基準にする Pokémon Showdown を vendor/ に取得・組み立て
 npm run seed:check       # 初期データを Showdown の検査にかける
+npm run compare          # エンジンと Showdown の照合（docs/engine-compare.md）
+npm run rules            # 指示文 4-1. の項目の確かめ（docs/rules-check.md）
+npm run bench            # 速さの測定
 ```
 
-対戦の仕組みの正しさの基準は Pokémon Showdown（MITライセンス、https://github.com/smogon/pokemon-showdown）。
+対戦エンジンの作りと速さは docs/engine.md にある。
+
+対戦の仕組みは Pokémon Showdown（MITライセンス、https://github.com/smogon/pokemon-showdown）をそのまま使う。使用許諾は THIRD_PARTY_NOTICES.md。

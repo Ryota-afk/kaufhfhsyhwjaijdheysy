@@ -1,0 +1,36 @@
+# エンジン（Showdown＋速さの層）と Showdown の照合、指示文 4-1. の項目の確かめ。
+# ずれが1回でもあれば失敗にする。
+name: 照合
+on:
+  push:
+    paths: ['src/engine/**', 'tools/**', 'package.json', '.github/workflows/compare.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: vendor/showdown
+          key: showdown-${{ hashFiles('tools/showdown/COMMIT') }}
+      - run: npm run showdown:setup
+      - name: ランダムな盤面での照合（300盤面×20種×4ターン）
+        run: npm run compare -- 300 20 4 ${{ github.run_number }}
+      - name: 指示文 4-1. の項目
+        run: npm run rules
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compare-report
+          path: |
+            docs/engine-compare.md
+            docs/rules-check.md
