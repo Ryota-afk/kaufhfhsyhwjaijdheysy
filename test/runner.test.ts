@@ -25,3 +25,20 @@ test('盤面の形に戻す：盤面から作った対戦を戻すと、もと�
   }
   assert.ok(n > 150);
 });
+
+test('メガシンカ済みの盤面：姿が変わったときの特性（ひでり・いかく）で、盤面にない天気や能力ランクが付かない', () => {
+  const mon = (species: string, item: string, ability: string, moves: string[], extra: any = {}) => ({ set: { species, item, ability, nature: 'Hardy', evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, moves }, hp: 150, status: '' as const, ...extra });
+  const pos: any = { sides: [
+    { mons: [mon('Primarina', 'sitrusberry', 'torrent', ['aquajet'])], active: 0 },
+    { mons: [mon('Charizard', 'charizarditey', 'blaze', ['flamethrower'], { mega: true })], active: 0, megaUsed: true },
+  ], field: {} };
+  const r = new ShowdownRunner(pos, 1);
+  assert.equal(r.battle.field.weather, '');
+  assert.equal(r.battle.sides[1].active[0].species.name, 'Charizard-Mega-Y');
+  const pos2: any = { sides: [
+    { mons: [mon('Primarina', 'sitrusberry', 'torrent', ['aquajet'])], active: 0 },
+    { mons: [mon('Manectric', 'manectite', 'static', ['thunderbolt'], { mega: true })], active: 0, megaUsed: true },
+  ], field: {} };
+  const r2 = new ShowdownRunner(pos2, 1);
+  assert.equal(r2.battle.sides[0].active[0].boosts.atk, 0);
+});

@@ -18,6 +18,7 @@ export interface PosMon {
   statusTime?: number;        // ねむり・こおり：残りの数え（Showdown の statusState.time）。もうどく：段階（stage）
   boosts?: Partial<Record<BoostID, number>>;
   itemGone?: boolean;         // 持ち物を失っている
+  heldItem?: string;          // トリック等で、もとの持ち物と違う持ち物を持っている（id）
   mega?: boolean;             // すでにメガシンカしている
   forme?: string;             // メガシンカ以外で姿が変わっている（例：Mimikyu-Busted、Aegislash-Blade）
   pp?: number[];              // 技ごとの残りPP（省略時は最大）

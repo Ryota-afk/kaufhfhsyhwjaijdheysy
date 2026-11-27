@@ -95,7 +95,7 @@ export function makeCalc(PS: any, FORMAT: string) {
         const key = JSON.stringify([c.item, c.ability, c.nature, c.evs.spe]);
         let p = cache.get(key);
         if (p === undefined) {
-          try { p = oppFirstProb(withCandidate(pos, (1 - ourSide) as 0 | 1, species, { ...c, moves: [oppMove] }), ourSide, ourMove, oppMove); } catch { p = oppFirst ? 0 : 1; }
+          try { p = oppFirstProb(withCandidate(pos, (1 - ourSide) as 0 | 1, species, { ...c, moves: [oppMove] }), ourSide, ourMove, oppMove); } catch (e: any) { if ((globalThis as any).process?.env?.DEBUG_CALC) console.log("順番の計算の失敗", species, c.item, e.message); p = oppFirst ? 0 : 1; }
           cache.set(key, p);
         }
         return oppFirst ? p : 1 - p;

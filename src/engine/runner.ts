@@ -53,7 +53,10 @@ export function makeRunner(PS: any, FORMAT: string) {
           const boosts: any = {}; for (const [k, v] of Object.entries(p.boosts)) if (v) boosts[k] = v;
           if (Object.keys(boosts).length) m.boosts = boosts;
           if (!p.item && ps.mons[i].set.item) m.itemGone = true;
-          if (p.species.isMega) m.mega = true;
+          else if (p.item && p.item !== toID(ps.mons[i].set.item)) m.heldItem = p.item;
+          // へんしん中（メタモン）の姿は盤面の形に残さない（へんしんは盤面の形で表せない）
+          if (p.transformed) { /* なし */ }
+          else if (p.species.isMega) m.mega = true;
           else if (p.species.id !== toID(ps.mons[i].set.species)) m.forme = p.species.name;
           m.pp = p.moveSlots.map((ms: any) => ms.pp);
           if (p.isActive) {
@@ -90,6 +93,25 @@ export function makeRunner(PS: any, FORMAT: string) {
     private applyState() {
       const b = this.battle;
       const pos = this.pos;
+      // 姿の変化（メガシンカ等）を先に行う。姿が変わると特性の「出たとき」の効果（ひでり・いかく等）が働くので、
+      // その後で、場・能力ランク・状態を盤面どおりに置き直す
+      for (const [si, ps] of pos.sides.entries()) {
+        const side = b.sides[si];
+        for (const p of side.pokemon) {
+          const m = ps.mons[indexOf(ps, p)];
+          if (m.mega) {
+            const forme = b.actions.canMegaEvo(p);
+            if (!forme) throw new Error(`メガシンカできない：${m.set.species}`);
+            p.formeChange(forme, p.getItem(), true);
+          }
+          if (ps.megaUsed || m.mega) for (const q of side.pokemon) q.canMegaEvo = false;
+          if (m.forme && toID(m.forme) !== p.species.id) {
+            // ばけのかわ・アイスフェイスがはがれた姿は戻らない（Showdown も永続の姿の変化として扱う）
+            const permanent = /-(Busted|Noice)$/.test(m.forme);
+            p.formeChange(m.forme, null, permanent);
+          }
+        }
+      }
       // 場（天気・フィールド・トリックルーム）を盤面どおりに置き直す
       b.field.weather = ''; b.field.weatherState = b.initEffectState({ id: '' });
       b.field.terrain = ''; b.field.terrainState = b.initEffectState({ id: '' });
@@ -119,18 +141,8 @@ export function makeRunner(PS: any, FORMAT: string) {
         for (const p of side.pokemon) {
           const i = indexOf(ps, p);
           const m = ps.mons[i];
-          if (m.mega) {
-            const forme = b.actions.canMegaEvo(p);
-            if (!forme) throw new Error(`メガシンカできない：${m.set.species}`);
-            p.formeChange(forme, p.getItem(), true);
-          }
-          if (ps.megaUsed || m.mega) for (const q of side.pokemon) q.canMegaEvo = false;
-          if (m.forme && toID(m.forme) !== p.species.id) {
-            // ばけのかわ・アイスフェイスがはがれた姿は戻らない（Showdown も永続の姿の変化として扱う）
-            const permanent = /-(Busted|Noice)$/.test(m.forme);
-            p.formeChange(m.forme, null, permanent);
-          }
           if (m.itemGone) { p.item = ''; p.itemState = b.initEffectState({ id: '', target: p }); }
+          else if (m.heldItem && m.heldItem !== p.item) { p.item = m.heldItem; p.itemState = b.initEffectState({ id: m.heldItem, target: p }); }
           p.hp = Math.min(m.hp, p.maxhp);
           if (p.hp <= 0) { p.hp = 0; p.fainted = true; p.status = 'fnt'; side.pokemonLeft--; }
           else {

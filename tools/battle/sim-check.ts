@@ -111,7 +111,8 @@ for (let g = 0; g < GAMES; g++) {
     // 利用者が「今の状態」欄を画面どおりに直した、という前提で、見えるものは本当の値を渡す
     const boostsOf = (p: any): Record<string, number> => Object.fromEntries(Object.entries(p.boosts as Record<string, number>).filter(([, v]) => v));
     const condOf = (side: any) => { const c: any = {}; for (const k of ['stealthrock', 'spikes', 'toxicspikes', 'stickyweb', 'reflect', 'lightscreen', 'auroraveil', 'tailwind']) if (side.sideConditions[k]) c[k] = side.sideConditions[k].layers ?? 1; return c; };
-    input.visible = { boosts: [boostsOf(b.sides[0].active[0]), boostsOf(s1)], weather: b.field.weather, terrain: b.field.terrain, trickroom: !!b.field.pseudoWeather.trickroom, cond: [condOf(b.sides[0]), condOf(b.sides[1])] };
+    const volOf = (p: any) => ({ leechseed: !!p.volatiles.leechseed, substitute: !!p.volatiles.substitute });
+    input.visible = { ourItem: b.sides[0].active[0].item, vol: [volOf(b.sides[0].active[0]), volOf(s1)], boosts: [boostsOf(b.sides[0].active[0]), boostsOf(s1)], weather: b.field.weather, terrain: b.field.terrain, trickroom: !!b.field.pseudoWeather.trickroom, cond: [condOf(b.sides[0]), condOf(b.sides[1])] };
     if (b.ended) break;
     if (process.env.DUMP === `${g}:${t + 1}`) {
       console.log('入力', JSON.stringify({ ours: input.ours, opp: input.opp, first: input.first, after: input.after }), '始めの相手', an.setup.oppSpecies[an.oppOrder[an.pos.sides[1].active]], 'a1', JSON.stringify(a1));
@@ -131,7 +132,7 @@ for (let g = 0; g < GAMES; g++) {
         lost++;
         if (problems.length < 60) {
           const c = idx >= 0 ? an.sets[i].cands[idx] : null;
-          const why = c ? an.sets[i].clues.map(cl => `${cl.label}=${cl.like(c).toFixed(3)}`).join(' / ') : '本当の型が候補にない';
+          const why = c ? an.sets[i].clues.map(cl => `${cl.label}=${cl.like(c).toFixed(3)}`).join(' / ') + ` ／ 見えた技：${an.sets[i].moves.join(',')}（本当の技：${tset.moves.join(',')}）` : '本当の型が候補にない';
           problems.push(`試合${g} ターン${t + 1}：${tset.jp}（${tset.item}・${tset.ability}）の本当の型が推定から消えた：${why}`);
         }
       }

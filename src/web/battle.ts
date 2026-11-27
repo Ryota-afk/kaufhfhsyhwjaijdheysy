@@ -190,8 +190,12 @@ function stateForm() {
   const condRow = (si: number, c: any = {}) => Object.keys(COND_JA).map(k => ['spikes', 'toxicspikes'].includes(k)
     ? `${COND_JA[k]} <select class="v-cond" data-s="${si}" data-k="${k}">${[0, 1, 2, 3].slice(0, k === 'spikes' ? 4 : 3).map(v => `<option value="${v}" ${(c[k] ?? 0) === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`
     : `<label><input type="checkbox" class="v-cond" data-s="${si}" data-k="${k}" ${c[k] ? 'checked' : ''}> ${COND_JA[k]}</label>`).join(' ');
-  return `<p>こちらの能力ランク：${boostRow(0, us.mons[us.active])}</p>
-    <p>相手の能力ランク：${boostRow(1, them.mons[them.active])}</p>
+  const volRow = (si: number, mon: any) => `<label><input type="checkbox" class="v-vol" data-s="${si}" data-k="leechseed" ${mon.vol?.leechseed ? 'checked' : ''}> やどりぎのタネ</label> <label><input type="checkbox" class="v-vol" data-s="${si}" data-k="substitute" ${mon.vol?.substitute ? 'checked' : ''}> みがわり</label>`;
+  const ua = us.mons[us.active];
+  const curItem = ua.itemGone ? '' : (ua.heldItem ?? ua.set.item);
+  return `<p>こちらの場の持ち物 <input id="v-ouritem" list="dl-items3" size="12" value="${esc(curItem ? jn('items', curItem) : '')}" placeholder="なし"><datalist id="dl-items3">${Object.values(ja.items).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist></p>
+    <p>こちらの能力ランク：${boostRow(0, us.mons[us.active])} ${volRow(0, us.mons[us.active])}</p>
+    <p>相手の能力ランク：${boostRow(1, them.mons[them.active])} ${volRow(1, them.mons[them.active])}</p>
     <p>天気 <select id="v-weather">${Object.entries(WEATHER_JA).map(([k, v]) => `<option value="${k}" ${(f.weather?.id ?? '') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
        フィールド <select id="v-terrain">${Object.entries(TERRAIN_JA).map(([k, v]) => `<option value="${k}" ${(f.terrain?.id ?? '') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
        <label><input type="checkbox" id="v-tr" ${f.trickroom ? 'checked' : ''}> トリックルーム</label></p>
@@ -205,7 +209,11 @@ function readVisible(): VisibleState {
     const v = x instanceof HTMLInputElement ? (x.checked ? 1 : 0) : Number(x.value);
     if (v) cond[Number(x.dataset.s)][x.dataset.k!] = v;
   });
-  return { boosts, cond, weather: (document.getElementById('v-weather') as HTMLSelectElement).value, terrain: (document.getElementById('v-terrain') as HTMLSelectElement).value, trickroom: (document.getElementById('v-tr') as HTMLInputElement).checked };
+  const vol: [any, any] = [{}, {}];
+  document.querySelectorAll<HTMLInputElement>('.v-vol').forEach(x => { vol[Number(x.dataset.s)][x.dataset.k!] = x.checked; });
+  const itemText = (document.getElementById('v-ouritem') as HTMLInputElement).value;
+  const ourItem = itemText ? resolve('items', itemText) : '';
+  return { boosts, cond, vol, ourItem: itemText && !ourItem ? undefined : ourItem, weather: (document.getElementById('v-weather') as HTMLSelectElement).value, terrain: (document.getElementById('v-terrain') as HTMLSelectElement).value, trickroom: (document.getElementById('v-tr') as HTMLInputElement).checked };
 }
 
 function bindBattle() {

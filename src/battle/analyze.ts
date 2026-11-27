@@ -38,6 +38,8 @@ export interface VisibleState {
   boosts?: [Partial<Record<string, number>>, Partial<Record<string, number>>];   // こちらの場の体、相手の場の体
   weather?: string; terrain?: string; trickroom?: boolean;                        // '' はなし
   cond?: [Record<string, number>, Record<string, number>];                        // まきびし等（層の数か、ある=1）
+  vol?: [{ leechseed?: boolean; substitute?: boolean }, { leechseed?: boolean; substitute?: boolean }];  // 場の体のやどりぎのタネ・みがわり
+  ourItem?: string;   // こちらの場の体が今持っている持ち物（id、'' はなし）。トリック等で変わったとき用
 }
 export interface StartInput { oppLead: number; oppAbility?: string; oppItem?: string }
 
@@ -50,6 +52,12 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
   const bench = new BenchModel(teams, selections);
   const maxhpOf = (set: MonSet) => dex.species.get(set.species).baseStats.hp + set.evs.hp + 75;
 
+  // 使った側のHPがそのターンのうちに動く技（回復・吸い取り・反動・やどりぎのタネ・みがわり等）
+  const SELF_HP = new Set(['synthesis', 'moonlight', 'morningsun', 'shoreup', 'strengthsap', 'rest', 'painsplit', 'wish', 'leechseed', 'ingrain', 'aquaring',
+    'substitute', 'bellydrum', 'filletaway', 'clangoroussoul', 'curse', 'steelbeam', 'mindblown', 'chloroblast', 'healingwish', 'lunardance', 'memento', 'finalgambit',
+    'explosion', 'selfdestruct', 'mistyexplosion', 'highjumpkick', 'jumpkick', 'shedtail', 'junglehealing', 'lifedew', 'swallow', 'milkdrink', 'softboiled', 'recover', 'slackoff', 'roost']);
+  const selfHpMove = (m: string) => { const mv = dex.moves.get(m); return !!(mv.drain || mv.recoil || mv.heal || mv.selfdestruct || mv.hasCrashDamage || mv.mindBlownRecoil || SELF_HP.has(mv.id)); };
+
   return class Analyzer {
     setup: BattleSetup;
     opp: OppMonState[];
@@ -59,6 +67,8 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
     oppOrder: number[] = [];           // pos.sides[1].mons の各体が、相手の6体の何番か
     turn = 0;
     notes: string[] = [];              // 直近のターンの再現についての注意
+    itemChanged: boolean[] = [false, false, false, false, false, false]; // トリック等で持ち物が入れ替わったかもしれない体
+    itemGone: boolean[] = [false, false, false, false, false, false];    // 持ち物がなくなったのが画面で見えた体（使い切りの持ち物の発動、はたきおとす）
     constructor(setup: BattleSetup) {
       this.setup = setup;
       this.opp = setup.oppSpecies.map(() => ({ seen: false, hpPct: 100, status: '', fainted: false }));
@@ -114,7 +124,8 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
         const o = this.opp[i];
         const hp = o.fainted ? 0 : Math.max(1, Math.round(maxhpOf(set) * o.hpPct / 100));
         const m: PosMon = { set, hp, status: o.fainted ? '' : o.status };
-        if (prev) { if (prev.boosts) m.boosts = prev.boosts; if (prev.vol) m.vol = prev.vol; if (prev.itemGone) m.itemGone = true; if (prev.mega) m.mega = true; if (prev.forme) m.forme = prev.forme; if (prev.statusTime !== undefined) m.statusTime = prev.statusTime; }
+        if (this.itemGone[i]) m.itemGone = true;
+        if (prev) { if (prev.boosts) m.boosts = prev.boosts; if (prev.vol) m.vol = prev.vol; if (prev.mega) m.mega = true; if (prev.forme) m.forme = prev.forme; if (prev.statusTime !== undefined) m.statusTime = prev.statusTime; }
         return m;
       });
       const activeIdx = this.oppOrder[old.active];
@@ -141,9 +152,25 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
       const transformer = oppSp.baseSpecies === 'Ditto';
       // へんげんじざい・リベロでタイプが変わる（盤面の形がタイプの変化を持たない）ので、ダメージの手がかりにしない
       const typeShifter = Object.values(oppSp.abilities).some((a: any) => ['protean', 'libero'].includes(toID(a)));
-      if (oppMove && !transformer) os.revealMove(oppMove);
-      if (t.oppItem) this.sets[t.after.oppActive].add(clueItem(t.oppItem));
-      if (t.oppAbility) {
+      if (oppMove && !transformer && toID(oppMove) !== 'struggle') os.revealMove(oppMove);
+      // トリック・すりかえ等で持ち物が入れ替わると、見える持ち物ももとの持ち物ではなくなり、素早さ・ダメージも変わるので、
+      // その体については、以後、持ち物・順番・ダメージの手がかりを使わない
+      const SWAP = ['trick', 'switcheroo', 'thief', 'covet', 'bestow'];
+      const ourMoveId = t.ours.kind === 'move' ? start.sides[0].mons[start.sides[0].active].set.moves[t.ours.slot] : '';
+      const swapNow = (oppMove && SWAP.includes(toID(oppMove))) || SWAP.includes(toID(ourMoveId ?? ''));
+      const itemFrozen = this.itemChanged[oppActiveIdx] || swapNow;
+      if (swapNow) this.itemChanged[oppActiveIdx] = true;
+      if (t.oppItem && !this.itemChanged[t.after.oppActive] && !(t.after.oppActive === oppActiveIdx && itemFrozen)) this.sets[t.after.oppActive].add(clueItem(t.oppItem));
+      // 使い切りの持ち物の発動が見えたら、その体の持ち物はなくなった
+      if (t.oppItem) {
+        const it = dex.items.get(t.oppItem);
+        if (it.isBerry || ['focussash', 'airballoon', 'whiteherb', 'mentalherb', 'powerherb', 'redcard', 'ejectbutton', 'ejectpack', 'weaknesspolicy', 'boosterenergy', 'roomservice', 'throatspray', 'adrenalineorb', 'blunderpolicy', 'mirrorherb', 'cellbattery', 'absorbbulb', 'snowball', 'luminousmoss'].includes(it.id)) this.itemGone[t.after.oppActive] = true;
+      }
+      const abOwner = dex.species.get(this.setup.oppSpecies[t.after.oppActive]);
+      const possibleAb = new Set<string>([...Object.values(abOwner.abilities).map((a: any) => toID(a))]);
+      for (const it of dex.items.all()) if (it.megaStone) for (const [from, f] of Object.entries(it.megaStone) as [string, string][]) if (dex.species.get(from).baseSpecies === abOwner.baseSpecies) possibleAb.add(toID(dex.species.get(f).abilities['0']));
+      // その種族（とメガシンカ）が持てない特性が見えたときは、トレース等で写したものなので、手がかりにしない
+      if (t.oppAbility && possibleAb.has(toID(t.oppAbility))) {
         // メガシンカした後の特性も見えるので、メガストーンを持つ候補はメガシンカ後の特性とも比べる
         const ab = toID(t.oppAbility);
         this.sets[t.after.oppActive].add({ label: `特性が ${t.oppAbility}`, like: c => {
@@ -156,8 +183,11 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
       const ourMega = t.ourMega || (t.ours.kind === 'move' && !!(t.ours as any).mega);
       if (oppMega) {
         const stones = dex.items.all().filter((it: any) => it.megaStone && Object.keys(it.megaStone).some((k: string) => toID(k) === toID(this.setup.oppSpecies[oppActiveIdx])));
+        // メガストーンが2つある種族（リザードン等）も、どちらかを持つことは分かる
         if (stones.length === 1) os.add(clueItem(stones[0].name));
+        else if (stones.length > 1) { const ids = stones.map((it: any) => it.id); os.add({ label: `持ち物が ${stones.map((it: any) => it.name).join('・')} のどれか`, like: c => ids.includes(toID(c.item)) ? 1 : 0 }); }
       }
+      if (toID(ourMoveId ?? '') === 'knockoff' && t.after.oppActive === oppActiveIdx && t.after.oppHpPct < beforePct) this.knockedPending = oppActiveIdx;
       const startPos: Position = { ...start, sides: [start.sides[0], this.oppSide(order, start, i => this.mapSet(i, i === oppActiveIdx ? oppMove : undefined))] };
       // メガシンカは技より先に起きるので、順番とダメージの手がかりはメガシンカした後の姿で計算する
       const clueStart: Position = JSON.parse(JSON.stringify(startPos));
@@ -166,7 +196,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
       if (t.ours.kind === 'move' && t.opp.kind === 'move' && t.first) {
         const ourMove = startPos.sides[0].mons[startPos.sides[0].active].set.moves[t.ours.slot];
         // こちらのアンコールが先に当たると、相手の技が差し替わるので、順番の手がかりにしない
-        if (ourMove && !transformer && !(toID(ourMove) === 'encore' && t.first === 'us')) os.add(calc.clueOrder(clueStart, 0, this.setup.oppSpecies[oppActiveIdx], ourMove, t.opp.move, t.first === 'them'));
+        if (ourMove && !transformer && !itemFrozen && !(toID(ourMove) === 'encore' && t.first === 'us')) os.add(calc.clueOrder(clueStart, 0, this.setup.oppSpecies[oppActiveIdx], ourMove, t.opp.move, t.first === 'them'));
       }
       // 再現：相手の型をもう一度「いちばんありそうな型」にして、何通りか打ち直す
       const replayPos: Position = { ...start, sides: [start.sides[0], this.oppSide(order, start, i => this.mapSet(i, i === oppActiveIdx ? oppMove : undefined))] };
@@ -224,17 +254,21 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
         const ourA = startPos.sides[0].mons[startPos.sides[0].active].set;
         const contact = oppMove ? !!dex.moves.get(oppMove).flags?.contact : false;
         const ourStartMon = start.sides[0].mons[start.sides[0].active];
-        const quiet = !ourStartMon.vol?.leechseed && !(contact && (ourA.item === 'rockyhelmet' || ['roughskin', 'ironbarbs'].includes(ourA.ability))) && !t.oppItem && !this.opp[oppActiveIdx].status && !start.field?.weather && !start.field?.terrain && !start.sides[1].mons[start.sides[1].active].vol?.leechseed &&
-          !(oppMove && (dex.moves.get(oppMove).drain || dex.moves.get(oppMove).recoil || dex.moves.get(oppMove).heal || ['painsplit', 'substitute'].includes(toID(oppMove))));
+        // メガシンカした（ひでり等で天気が変わる）、またはターンの終わりの天気・フィールドが始めと違うときも使わない
+        const fieldChanged = oppMega || ourMega || (t.visible?.weather !== undefined && (t.visible.weather || '') !== (start.field?.weather?.id ?? '')) || (t.visible?.terrain !== undefined && (t.visible.terrain || '') !== (start.field?.terrain?.id ?? ''));
+        const quiet = !fieldChanged && !ourStartMon.vol?.leechseed && !(contact && (ourA.item === 'rockyhelmet' || ['roughskin', 'ironbarbs'].includes(ourA.ability))) && !t.oppItem && !this.opp[oppActiveIdx].status && !start.field?.weather && !start.field?.terrain && !start.sides[1].mons[start.sides[1].active].vol?.leechseed &&
+          !(oppMove && selfHpMove(oppMove));
         const oppStartMon = start.sides[1].mons[start.sides[1].active];
         // みがわりがあるとき、ばけのかわ・アイスフェイスがはがれていないときは、HPの減り方が技のダメージにならない
         const shielded = !!oppStartMon.vol?.substitute || (['Mimikyu', 'Eiscue'].includes(dex.species.get(this.setup.oppSpecies[oppActiveIdx]).baseSpecies) && !oppStartMon.forme);
-        if (quiet && !shielded && !transformer && !typeShifter && mv.category !== 'Status' && !mv.multihit && t.after.oppHpPct < before) {
+        if (quiet && !shielded && !transformer && !typeShifter && !itemFrozen && mv.category !== 'Status' && !mv.multihit && t.after.oppHpPct < before) {
           os.add(calc.clueDamageToOpp(clueStart, 0, this.setup.oppSpecies[oppActiveIdx], mv.name, before, t.after.oppHpPct, !!t.critOnOpp));
         }
       }
+      if (this.knockedPending !== null) { this.itemGone[this.knockedPending] = true; this.knockedPending = null; }
       return { notes: this.notes, score: best.score };
     }
+    knockedPending: number | null = null;
 
     /** 画面に見える状態で上書きする（残りターンは分からないので、同じものが続いていれば再現の値、新しければ5）。 */
     applyVisible(pos: Position, v: VisibleState) {
@@ -243,6 +277,17 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
       if (v.weather !== undefined) f.weather = v.weather ? { id: v.weather, turns: f.weather?.id === v.weather ? f.weather.turns : 5 } : undefined;
       if (v.terrain !== undefined) f.terrain = v.terrain ? { id: v.terrain, turns: f.terrain?.id === v.terrain ? f.terrain.turns : 5 } : undefined;
       if (v.trickroom !== undefined) f.trickroom = v.trickroom ? (f.trickroom || 5) : undefined;
+      if (v.ourItem !== undefined) {
+        const m = pos.sides[0].mons[pos.sides[0].active];
+        delete m.heldItem; delete m.itemGone;
+        if (!v.ourItem) m.itemGone = true; else if (toID(v.ourItem) !== toID(m.set.item)) m.heldItem = toID(v.ourItem);
+      }
+      if (v.vol) v.vol.forEach((x, si) => {
+        const sd = pos.sides[si]; const m = sd.mons[sd.active]; const vol: any = { ...(m.vol ?? {}) };
+        if (x.leechseed !== undefined) { if (x.leechseed) vol.leechseed = true; else delete vol.leechseed; }
+        if (x.substitute !== undefined) { if (x.substitute) vol.substitute = vol.substitute || Math.floor(maxhpOf(m.set) / 4); else delete vol.substitute; }
+        if (Object.keys(vol).length) m.vol = vol; else delete m.vol;
+      });
       if (v.cond) v.cond.forEach((c, si) => {
         const old: any = pos.sides[si].cond ?? {}, nc: any = {};
         for (const [k, x] of Object.entries(c)) if (x) nc[k] = ['stealthrock', 'stickyweb'].includes(k) ? true : ['spikes', 'toxicspikes'].includes(k) ? x : (old[k] || 5);
@@ -290,7 +335,10 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
         if (trio.length !== 3) trio = this.oppTrio();
         const order = [activeIdx, ...trio.filter(i => i !== activeIdx)].slice(0, 3);
         const side = this.oppSide(order, this.pos, i => {
-          const s = this.sets[i].sample(rand);
+          // メガシンカ済みの体は、メガストーンを持つ型だけにする（持たない型が抜き出されたら、いちばんありそうな型にする）
+          const m = this.pos.sides[1].mons[this.oppOrder.indexOf(i)];
+          let s = this.sets[i].sample(rand);
+          if (s && m?.mega && !dex.items.get(s.item).megaStone) s = null;
           return s ? { species: this.setup.oppSpecies[i], item: toID(s.item), ability: toID(s.ability), nature: s.nature, evs: s.evs, moves: s.moves.map(toID) } : this.mapSet(i);
         });
         out.push({ ...this.pos, sides: [this.pos.sides[0], side] });
