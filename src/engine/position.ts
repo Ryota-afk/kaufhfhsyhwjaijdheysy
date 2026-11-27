@@ -19,6 +19,7 @@ export interface PosMon {
   boosts?: Partial<Record<BoostID, number>>;
   itemGone?: boolean;         // 持ち物を失っている
   mega?: boolean;             // すでにメガシンカしている
+  forme?: string;             // メガシンカ以外で姿が変わっている（例：Mimikyu-Busted、Aegislash-Blade）
   pp?: number[];              // 技ごとの残りPP（省略時は最大）
   vol?: PosVolatiles;         // 場に出ているときだけ意味がある
 }

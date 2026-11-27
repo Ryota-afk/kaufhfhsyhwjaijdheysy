@@ -94,7 +94,10 @@ export function makeCalc(PS: any, FORMAT: string) {
       like: (c: SetCand) => {
         const key = JSON.stringify([c.item, c.ability, c.nature, c.evs.spe]);
         let p = cache.get(key);
-        if (p === undefined) { p = oppFirstProb(withCandidate(pos, (1 - ourSide) as 0 | 1, species, { ...c, moves: [oppMove] }), ourSide, ourMove, oppMove); cache.set(key, p); }
+        if (p === undefined) {
+          try { p = oppFirstProb(withCandidate(pos, (1 - ourSide) as 0 | 1, species, { ...c, moves: [oppMove] }), ourSide, ourMove, oppMove); } catch { p = oppFirst ? 0 : 1; }
+          cache.set(key, p);
+        }
         return oppFirst ? p : 1 - p;
       },
     };
@@ -114,15 +117,18 @@ export function makeCalc(PS: any, FORMAT: string) {
         let p = cache.get(key);
         if (p !== undefined) return p;
         const maxhp = dex.species.get(species).baseStats.hp + c.evs.hp + 75;
+        const oppMon = pos.sides[oppSide].mons[pos.sides[oppSide].active];
+        const endure = (h: number) => h === maxhp && (toID(c.ability) === 'sturdy' || (toID(c.item) === 'focussash' && !oppMon.itemGone));
         const hs: number[] = [];
         for (let h = 1; h <= maxhp; h++) if (shownPercent(h, maxhp) === before) hs.push(h);
         let hit = 0, total = 0;
         for (const h of hs) {
           const p2 = withCandidate(pos, oppSide, species, c);
           const s = p2.sides[oppSide]; s.mons[s.active].hp = h;
-          const rolls = damageRolls(p2, ourSide, ourMove, crit);
+          let rolls: number[] | null;
+          try { rolls = damageRolls(p2, ourSide, ourMove, crit); } catch { cache.set(key, 0); return 0; }
           if (!rolls) { total += 16; continue; }
-          for (const d of rolls) { total++; if (shownPercent(h - d, maxhp) === after) hit++; }
+          for (const d0 of rolls) { const d = endure(h) ? Math.min(d0, h - 1) : d0; total++; if (shownPercent(h - d, maxhp) === after) hit++; }
         }
         p = total ? hit / total : 0;
         cache.set(key, p);
@@ -143,8 +149,12 @@ export function makeCalc(PS: any, FORMAT: string) {
         if (p !== undefined) return p;
         const p2 = withCandidate(pos, oppSide, species, { ...c, moves: [oppMove] });
         const s = p2.sides[ourSide]; s.mons[s.active].hp = before;
-        const rolls = damageRolls(p2, oppSide, oppMove, crit);
-        p = rolls ? rolls.filter(d => Math.max(0, before - d) === after).length / 16 : 0;
+        let rolls: number[] | null;
+        try { rolls = damageRolls(p2, oppSide, oppMove, crit); } catch { rolls = null; }
+        const ours = p2.sides[ourSide].mons[p2.sides[ourSide].active];
+        const ourMax = dex.species.get(ours.set.species).baseStats.hp + ours.set.evs.hp + 75;
+        const endure = before === ourMax && (ours.set.ability === 'sturdy' || (ours.set.item === 'focussash' && !ours.itemGone));
+        p = rolls ? rolls.filter(d => Math.max(0, before - (endure ? Math.min(d, before - 1) : d)) === after).length / 16 : 0;
         cache.set(key, p);
         return p;
       },

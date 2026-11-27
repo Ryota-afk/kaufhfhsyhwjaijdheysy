@@ -42,6 +42,7 @@ if (BENCH_SECS > 0) {
   out.bench = b;
   for (const r of b.results) console.log(`${r.layer ? '速さの層あり' : 'Showdown そのまま'}：1秒あたり ${Math.round(r.turnsPerSec)} ターン、複製1回 ${Math.round(r.cloneUs)}µs（${r.games}試合）`);
   for (const r of b.iter) console.log(`探索1回相当（複製＋2ターン）：Worker ${r.workers}つで1秒あたり ${Math.round(r.itersPerSec)} 回`);
+  for (const r of b.search) console.log(`実際の探索：Worker ${r.workers}つで10秒に ${r.iters} 回（${(r.ms / 1000).toFixed(1)}秒）`);
   console.log('論理コア数', b.cores, b.ua);
 }
 if (errors.length) console.log('ページのエラー：', errors);

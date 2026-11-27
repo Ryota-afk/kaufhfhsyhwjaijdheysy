@@ -1,6 +1,6 @@
 // エンジンの入口：盤面（Position）を Showdown の Battle 上に再現し、行動を打って結果（Outcome）を読み出す。
 // Showdown 本体（PS）は外から渡す（Node では vendor/showdown、ブラウザでは段階4で組み立てる）。
-import type { Position, PosMon, Action, Outcome, OutcomeMon, PosSide } from './position.ts';
+import type { Position, PosMon, Action, Outcome, OutcomeMon, PosSide, PosVolatiles } from './position.ts';
 import { TRACKED_VOLATILES, TRACKED_SIDE, toID } from './position.ts';
 
 export function makeRunner(PS: any, FORMAT: string) {
@@ -22,7 +22,8 @@ export function makeRunner(PS: any, FORMAT: string) {
   class ShowdownRunner {
     battle: any;
     pos: Position;
-    constructor(pos: Position, seed: number) {
+    /** raw が true なら、対戦の始まり（先発が出た直後、特性の効果も入った状態）のまま、盤面の状態で上書きしない。 */
+    constructor(pos: Position, seed: number, raw = false) {
       this.pos = pos;
       const s = [seed & 0xffff, (seed >>> 16) & 0xffff, (seed * 7 + 13) & 0xffff, (seed * 31 + 101) & 0xffff];
       const b = new PS.Battle({ formatid: FORMAT, seed: s.join(',') });
@@ -34,7 +35,56 @@ export function makeRunner(PS: any, FORMAT: string) {
         const order = [side.active, ...[0, 1, 2].filter(x => x !== side.active)].map(x => x + 1).join('');
         b.choose(i === 0 ? 'p1' : 'p2', `team ${order}`);
       }
-      this.applyState();
+      if (!raw) this.applyState();
+    }
+
+    /** 今の Showdown の状態を、盤面の形に戻す（相手の HP は実数のまま）。追う一時的な状態は PosVolatiles の8種類だけ。 */
+    toPosition(): Position {
+      const b = this.battle;
+      const sides = b.sides.map((side: any, si: number) => {
+        const ps = this.pos.sides[si];
+        const mons = ps.mons.map((m0: PosMon) => ({ ...m0 }));
+        let active = ps.active;
+        for (const p of side.pokemon) {
+          const i = indexOf(ps, p);
+          const m: PosMon = { set: ps.mons[i].set, hp: p.hp, status: p.fainted ? '' : p.status };
+          if (p.status === 'slp' || p.status === 'frz') m.statusTime = p.statusState.time;
+          if (p.status === 'tox') m.statusTime = p.statusState.stage;
+          const boosts: any = {}; for (const [k, v] of Object.entries(p.boosts)) if (v) boosts[k] = v;
+          if (Object.keys(boosts).length) m.boosts = boosts;
+          if (!p.item && ps.mons[i].set.item) m.itemGone = true;
+          if (p.species.isMega) m.mega = true;
+          else if (p.species.id !== toID(ps.mons[i].set.species)) m.forme = p.species.name;
+          m.pp = p.moveSlots.map((ms: any) => ms.pp);
+          if (p.isActive) {
+            active = i;
+            const v: PosVolatiles = {}; const vv = p.volatiles;
+            if (vv.substitute) v.substitute = vv.substitute.hp;
+            if (vv.confusion) v.confusion = vv.confusion.time;
+            if (vv.leechseed) v.leechseed = true;
+            if (vv.taunt) v.taunt = vv.taunt.duration;
+            if (vv.choicelock) v.choicelock = vv.choicelock.move;
+            if (vv.yawn) v.yawn = vv.yawn.duration;
+            if (vv.focusenergy) v.focusenergy = true;
+            if (vv.curse) v.curse = true;
+            if (Object.keys(v).length) m.vol = v;
+          }
+          mons[i] = m;
+        }
+        const sc = side.sideConditions, cond: any = {};
+        if (sc.stealthrock) cond.stealthrock = true;
+        if (sc.spikes) cond.spikes = sc.spikes.layers;
+        if (sc.toxicspikes) cond.toxicspikes = sc.toxicspikes.layers;
+        if (sc.stickyweb) cond.stickyweb = true;
+        for (const k of ['reflect', 'lightscreen', 'auroraveil', 'tailwind']) if (sc[k]) cond[k] = sc[k].duration;
+        const megaUsed = side.pokemon.some((p: any) => p.species.isMega) || side.pokemon.every((p: any) => !p.canMegaEvo) && ps.mons.some((m: any) => dex.items.get(m.set.item).megaStone);
+        return { mons, active, megaUsed, cond };
+      }) as [PosSide, PosSide];
+      const f = b.field, field: any = {};
+      if (f.weather) field.weather = { id: f.weather, turns: f.weatherState.duration ?? 0 };
+      if (f.terrain) field.terrain = { id: f.terrain, turns: f.terrainState.duration ?? 0 };
+      if (f.pseudoWeather.trickroom) field.trickroom = f.pseudoWeather.trickroom.duration;
+      return { sides, field, turn: b.turn };
     }
 
     private applyState() {
@@ -75,6 +125,11 @@ export function makeRunner(PS: any, FORMAT: string) {
             p.formeChange(forme, p.getItem(), true);
           }
           if (ps.megaUsed || m.mega) for (const q of side.pokemon) q.canMegaEvo = false;
+          if (m.forme && toID(m.forme) !== p.species.id) {
+            // ばけのかわ・アイスフェイスがはがれた姿は戻らない（Showdown も永続の姿の変化として扱う）
+            const permanent = /-(Busted|Noice)$/.test(m.forme);
+            p.formeChange(m.forme, null, permanent);
+          }
           if (m.itemGone) { p.item = ''; p.itemState = b.initEffectState({ id: '', target: p }); }
           p.hp = Math.min(m.hp, p.maxhp);
           if (p.hp <= 0) { p.hp = 0; p.fainted = true; p.status = 'fnt'; side.pokemonLeft--; }
@@ -143,7 +198,8 @@ export function makeRunner(PS: any, FORMAT: string) {
     }
 
     /** 両者の行動を打ち、途中の交代は「番号の小さい控え」を選んで、次のターンの選択か決着まで進める。 */
-    play(a0: Action | null, a1: Action | null, maxSteps = 6) {
+    /** prefer：途中の交代で、選べるならこの番号の体を出す（両者それぞれ）。 */
+    play(a0: Action | null, a1: Action | null, maxSteps = 6, prefer: [number | null, number | null] = [null, null]) {
       const b = this.battle;
       if (a0) b.choose('p1', this.choiceString(0, a0));
       if (a1) b.choose('p2', this.choiceString(1, a1));
@@ -152,7 +208,7 @@ export function makeRunner(PS: any, FORMAT: string) {
           const side = b.sides[si];
           if (!side.activeRequest || side.activeRequest.wait) continue;
           const opts = this.legalActions(si).filter(x => x.kind === 'switch') as { kind: 'switch'; to: number }[];
-          opts.sort((x, y) => x.to - y.to);
+          opts.sort((x, y) => (x.to === prefer[si] ? -1 : 0) - (y.to === prefer[si] ? -1 : 0) || x.to - y.to);
           b.choose(side.id, opts.length ? this.choiceString(si, opts[0]) : 'pass');
         }
       }
