@@ -1,7 +1,8 @@
 {
  "id": "p202611270338021706",
  "name": "チーム2",
- "updatedAt": "2026-11-27T03:45:54.444Z",
+ "updatedAt": "2026-11-27T08:20:16.083Z",
+ "precompute": true,
  "mons": [
   {
    "species": "Salamence",
