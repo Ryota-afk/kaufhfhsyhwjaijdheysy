@@ -36,14 +36,16 @@ function greedy(b: any, si: number): string {
   }
   return best || opts[Math.floor(rand() * opts.length)];
 }
-function mcts(b: any, si: number): string {
+function mcts(b: any, si: number, iters = ITERS): string {
   const side = b.sides[si];
   if (side.activeRequest?.forceSwitch) { const o = legalChoices(side); return o[Math.floor(rand() * o.length)]; }
-  const r = search([b], clone, { timeMs: 1e9, maxIters: ITERS, rand });
+  const r = search([b], clone, { timeMs: 1e9, maxIters: iters, rand });
   const list = si === 0 ? r.ours : r.theirs;
   return list[0]?.choice ?? legalChoices(side)[0];
 }
 const agents: Record<string, (b: any, si: number) => string> = { random: (b, si) => { const o = legalChoices(b.sides[si]); return o[Math.floor(rand() * o.length)]; }, greedy, mcts };
+// 「mcts:回数」で、探索の回数を変えたAIどうしを比べられる
+for (const name of [A, B]) { const m = /^mcts:(\d+)$/.exec(name); if (m) agents[name] = (b, si) => mcts(b, si, Number(m[1])); }
 
 let winsA = 0, draws = 0, turns = 0;
 const t0 = Date.now();
@@ -67,5 +69,5 @@ for (let g = 0; g < GAMES; g++) {
 const p = (winsA + draws / 2) / GAMES, se = Math.sqrt(p * (1 - p) / GAMES);
 const res = { A, B, games: GAMES, iters: ITERS, winsA, draws, winRateA: p, se, avgTurns: turns / GAMES, seconds: (Date.now() - t0) / 1000 };
 mkdirSync('.build', { recursive: true });
-writeFileSync(`.build/arena-${A}-${B}-${ITERS}.json`, JSON.stringify(res, null, 1));
+writeFileSync(`.build/arena-${A}-${B}-${ITERS}.json`.replace(/:/g, '_'), JSON.stringify(res, null, 1));
 console.log(`${A} 対 ${B}（${GAMES}試合、探索${ITERS}回）：${A} の勝率 ${p.toFixed(3)} ± ${(2 * se).toFixed(3)}（引き分けは半分で数える）、平均 ${(turns / GAMES).toFixed(1)} ターン`);

@@ -10,7 +10,8 @@ export interface PartyMon {
   species: string; item: string; ability: string; nature: string;
   evs: Record<StatID, number>; moves: string[]; gender?: 'M' | 'F' | '';
 }
-export interface Party { id: string; name: string; updatedAt: string; mons: PartyMon[] }
+// precompute：「よく使う」の印。印のあるパーティだけ、裏の計算（GitHub Actions）で選出の表を先に解く
+export interface Party { id: string; name: string; updatedAt: string; precompute?: boolean; mons: PartyMon[] }
 
 export function emptyMon(): PartyMon {
   return { species: '', item: '', ability: '', nature: 'Hardy', evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, moves: ['', '', '', ''], gender: '' };

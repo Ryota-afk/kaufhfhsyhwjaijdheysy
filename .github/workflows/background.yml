@@ -1,20 +1,86 @@
-# 裏の計算。毎日決まった時刻に動く。
-# 段階0では中身は空（動いた時刻を記録するだけ）。段階5・6で計算を足す。
-# 1回の作業は GitHub の上限（6時間）より短い5時間半で打ち切る。
+# 裏の計算。毎日決まった時刻に動く（時刻は数時間ずれることがある）。
+# 先回りの計算：「よく使う」の印をつけたパーティ × 上位構築の選出の表を、4つに分けて並べて埋める。
+# 1回の作業は GitHub の上限（6時間）より短く区切り、途中の結果を data/precomputed/ に保存して、次の回に続きから再開する。
 name: 裏の計算
 on:
   schedule:
     - cron: '47 15 * * *'   # 毎日 15:47（世界標準時）＝ 日本時間 0:47
   workflow_dispatch:
+    inputs:
+      minutes:
+        description: '計算する分数（確かめ用に短くできる）'
+        default: '320'
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: background
+  cancel-in-progress: false
 jobs:
-  run:
+  precompute:
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
-      - name: 動いた時刻を記録
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: vendor/showdown
+          key: showdown-${{ hashFiles('tools/showdown/COMMIT') }}
+      - run: npm run showdown:setup
+      - name: 計算機の様子
         run: |
-          echo "起動のきっかけ: ${{ github.event_name }}"
-          echo "時刻（世界標準時）: $(date -u '+%Y-%m-%d %H:%M:%S')"
+          echo "起動のきっかけ: ${{ github.event_name }}、時刻（世界標準時）: $(date -u '+%Y-%m-%d %H:%M:%S')"
+          echo "論理コア数: $(nproc)"
+      - name: 先回りの計算（分担 ${{ matrix.shard }}/4）
+        run: npx tsx tools/select/precompute.ts --minutes ${{ github.event.inputs.minutes || '320' }} --shard ${{ matrix.shard }} --shards 4
+      - name: 結果をリポジトリに保存
+        if: always()
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/precomputed || true
+          if git diff --cached --quiet; then echo '保存するものなし'; exit 0; fi
+          git commit -m "先回りの計算（分担 ${{ matrix.shard }}、$(date -u '+%Y-%m-%d %H:%M')）"
+          # 4つの分担が同時に書くので、取り込み直して送る（ファイルは分担ごとに別なのでぶつからない）
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0
+            sleep $((i * 10))
+          done
+          exit 1
+  finish:
+    # 4つの分担が終わった後に1回だけ：表の一覧と、近い構築から見積もるための相性を作って保存
+    needs: precompute
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 表の一覧と相性の見積もり
+        run: npx tsx tools/select/finish.ts
+      - name: 保存
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/precomputed || true
+          if git diff --cached --quiet; then echo '保存するものなし'; exit 0; fi
+          git commit -m "先回りの計算のまとめ（$(date -u '+%Y-%m-%d %H:%M')）"
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0
+            sleep $((i * 10))
+          done
+          exit 1

@@ -1,0 +1,116 @@
+// 先回りの計算：「よく使う」の印をつけたパーティ × 上位構築ごとに、選出の表（60×60）を AIどうしの対戦で埋め、
+// data/precomputed/<パーティの番号>/<構築の順位>.json に保存する。時間で区切り、次の回は保存した数から続ける。
+// 使い方：npx tsx tools/select/precompute.ts [--minutes 分] [--shard 番号 --shards 数] [--threads 数] [--party ファイル] [--ranks 1,3,4]
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
+import { partyKey as keyOf, plainSet } from '../../src/select/key.ts';
+import { Worker } from 'node:worker_threads';
+import { loadShowdown, FORMAT } from '../showdown/load.ts';
+import { emptyStats, nextWork, solveTable, SIZE, type TableStats } from '../../src/select/table.ts';
+
+const arg = (name: string, d: string) => { const i = process.argv.indexOf(`--${name}`); return i >= 0 ? process.argv[i + 1] : d; };
+const MINUTES = Number(arg('minutes', '10')), SHARD = Number(arg('shard', '0')), SHARDS = Number(arg('shards', '1'));
+const THREADS = Number(arg('threads', String(availableParallelism())));
+const SAVE_EVERY_MS = 3 * 60 * 1000;
+// AI と試合数の設定（docs/select.md の測定で決めた値）。変えたら保存済みの表は作り直しになる
+const AI = { iters: 25, n0: 4, levels: [16, 32, 64] };
+const deadline = Date.now() + MINUTES * 60 * 1000;
+
+const PS = loadShowdown();
+const validator = PS.TeamValidator.get(FORMAT);
+const toID = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const plain = plainSet;
+
+// 対象のパーティ：--party で1つ、なければ data/parties/ のうち precompute が true のもの
+const partyFiles = arg('party', '') ? [arg('party', '')] : (existsSync('data/parties') ? readdirSync('data/parties').filter(f => f.endsWith('.json')).map(f => `data/parties/${f}`) : []);
+const parties = partyFiles.map(f => JSON.parse(readFileSync(f, 'utf8'))).filter((p: any) => arg('party', '') || p.precompute);
+const valid = (mons: any[]) => !validator.validateTeam(mons.map((m: any) => ({ ...m, name: '', level: 50, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 } })));
+const rankFilter = arg('ranks', '') ? new Set(arg('ranks', '').split(',').map(Number)) : null;
+const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8'))
+  .filter((t: any) => (!rankFilter || rankFilter.has(t.rank)) && valid(t.mons))
+  .sort((a: any, b: any) => a.rank - b.rank);
+// 仕事の並び：順位の高い構築から、パーティを順に。分担は番号の余りで分ける
+const items: { party: any; team: any }[] = [];
+for (const team of teams) for (const party of parties) items.push({ party, team });
+const mine = items.filter((_, i) => i % SHARDS === SHARD);
+console.log(`対象：パーティ ${parties.length}、構築 ${teams.length}、この分担の仕事 ${mine.length}、手伝い ${THREADS}、${MINUTES}分で区切る`);
+
+interface Saved { party: string; partyKey: string; team: { rank: number; season: string; species: string[] }; ai: typeof AI; n: number[]; w: number[]; level: number; done: boolean; games: number; seconds: number; solution?: any; updatedAt: string }
+// パーティの中身（6体の型）が同じかどうかの目印。名前や印を変えただけでは作り直さない
+const partyKey = (party: any) => keyOf(party.mons);
+const fileOf = (party: any, team: any) => `data/precomputed/${party.id}/${team.rank}.json`;
+function load(party: any, team: any): Saved {
+  const f = fileOf(party, team);
+  const fresh: Saved = { party: party.id, partyKey: partyKey(party), team: { rank: team.rank, season: team.season, species: team.mons.map((m: any) => m.species) }, ai: AI, ...emptyStats(), level: 0, done: false, games: 0, seconds: 0, updatedAt: '' };
+  if (!existsSync(f)) return fresh;
+  const s: Saved = JSON.parse(readFileSync(f, 'utf8'));
+  // パーティを直した、または AI の設定を変えたときは作り直す
+  if (s.partyKey !== partyKey(party) || JSON.stringify(s.ai) !== JSON.stringify(AI)) { console.log(`作り直し：${f}（パーティか AI の設定が変わった）`); return fresh; }
+  return s;
+}
+function save(s: Saved, party: any, team: any) {
+  mkdirSync(`data/precomputed/${party.id}`, { recursive: true });
+  const st: TableStats = { n: s.n, w: s.w };
+  if (s.n.every(x => x > 0)) {
+    const sol = solveTable(st);
+    const top = (p: number[]) => p.map((x, i) => [i, Math.round(x * 1e4) / 1e4]).filter(([, x]) => x > 0);
+    s.solution = { value: Math.round(sol.value * 1e4) / 1e4, row: top(sol.row), col: top(sol.col) };
+  }
+  s.updatedAt = new Date().toISOString();
+  writeFileSync(fileOf(party, team), JSON.stringify(s));
+}
+
+const workers: Worker[] = [];
+const idle: Worker[] = [];
+const ready = Array.from({ length: THREADS }, () => new Promise<void>(res => {
+  const w = new Worker(new URL('./precompute-worker.ts', import.meta.url), { execArgv: ['--import', 'tsx'] });
+  w.once('message', () => { idle.push(w); res(); });
+  workers.push(w);
+}));
+await Promise.all(ready);
+
+let totalGames = 0;
+for (const { party, team } of mine) {
+  if (Date.now() > deadline) break;
+  const s = load(party, team);
+  if (s.done) continue;
+  const label = `${party.name ?? party.id} 対 ${team.rank}位`;
+  const ours = party.mons.map(plain), theirs = team.mons.map(plain);
+  let tMark = Date.now();
+  const addTime = () => { s.seconds += (Date.now() - tMark) / 1000; tMark = Date.now(); };
+  let lastSave = Date.now(), gamesHere = 0;
+  console.log(`始める：${label}（保存済みの試合 ${s.games}）`);
+  while (Date.now() < deadline) {
+    const work = nextWork(s, AI.n0, AI.levels);
+    s.level = work.level;
+    if (work.done) { s.done = true; break; }
+    // 足りない試合を、マスの番号の順に並べて手伝いに配る。試合の種は「マスと、そのマスの何試合目か」で決める
+    const jobs: { k: number; g: number }[] = [];
+    for (const [k, need] of work.need) for (let i = 0; i < need; i++) jobs.push({ k, g: s.n[k] + i });
+    await new Promise<void>(resolve => {
+      let next = 0, running = 0;
+      const pump = () => {
+        while (idle.length && next < jobs.length && Date.now() < deadline) {
+          const { k, g } = jobs[next++];
+          const w = idle.pop()!;
+          running++;
+          w.once('message', (m: any) => {
+            running--; idle.push(w);
+            if (m.error) console.log(`試合のエラー：マス ${m.r},${m.c}：${m.error}`);
+            else { const kk = m.r * SIZE + m.c; s.n[kk]++; s.w[kk] += m.v; s.games++; gamesHere++; totalGames++; }
+            if (Date.now() - lastSave > SAVE_EVERY_MS) { addTime(); save(s, party, team); lastSave = Date.now(); console.log(`途中の保存：${label} 段階 ${s.level}、試合 ${s.games}`); }
+            if ((next >= jobs.length || Date.now() >= deadline) && running === 0) resolve(); else pump();
+          });
+          w.postMessage({ id: next, ours, theirs, r: Math.floor(k / SIZE), c: k % SIZE, iters: AI.iters, seed: (team.rank * 7919 + k * 104729 + g * 15485863 + 1) >>> 0 });
+        }
+        if (running === 0) resolve();
+      };
+      pump();
+    });
+  }
+  addTime();
+  save(s, party, team);
+  console.log(`${s.done ? '終わり' : '区切り'}：${label} 段階 ${s.level}、試合 ${s.games}（今回 ${gamesHere}）、勝率 ${s.solution?.value ?? '-'}`);
+}
+for (const w of workers) await w.terminate();
+console.log(`今回の試合 ${totalGames}`);

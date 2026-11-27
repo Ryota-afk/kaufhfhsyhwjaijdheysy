@@ -5,10 +5,16 @@ import type { BattleSetup, TurnInput, StartInput, VisibleState } from '../battle
 import type { Position, StatusID, MonSet } from '../engine/position.ts';
 import { SearchPool } from '../search/coordinator.ts';
 import { putFile } from '../party/github.ts';
+import { spotSolve } from '../select/spot.ts';
+import { emptyStats, solveTable, type TableStats } from '../select/table.ts';
+import { pickOf } from '../select/cell.ts';
+import { partyKey, plainSet } from '../select/key.ts';
+import { predictCell } from '../select/model.ts';
+import { likelySet } from '../select/likely.ts';
 
 const base = import.meta.env.BASE_URL;
 const app = document.getElementById('app')!;
-const KEY_BATTLE = 'champions.currentBattle', KEY_PARTIES = 'champions.parties', KEY_TOKEN = 'champions.githubToken', KEY_TIME = 'champions.searchMs';
+const KEY_BATTLE = 'champions.currentBattle', KEY_PARTIES = 'champions.parties', KEY_TOKEN = 'champions.githubToken', KEY_TIME = 'champions.searchMs', KEY_SELECT_TIME = 'champions.selectMs';
 const dex: any = dexJson;
 const toID = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const kata = (s: string) => s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60)).replace(/[\s　]/g, '');
@@ -55,6 +61,9 @@ function renderSetup() {
     <h3>相手の6体</h3>
     <div class="row">${[0, 1, 2, 3, 4, 5].map(i => `<input class="s-opp" data-i="${i}" list="dl-species" placeholder="${i + 1}体目" size="12">`).join(' ')}</div>
     <datalist id="dl-species">${Object.entries(ja.species).map(([, v]) => `<option value="${esc(v as string)}">`).join('')}</datalist>
+    <h3>選出のおすすめ</h3>
+    <div id="s-select" class="muted">（こちらのパーティと相手の6体を入れると、読み合いで釣り合う選出を計算します）</div>
+    <p class="muted"><label>その場で計算する時間 <input id="s-time" type="number" min="5" max="85" value="${Math.round(load<number>(KEY_SELECT_TIME, 60000) / 1000)}" style="width:4em">秒</label>（保存した表がない相手のとき。選出時間は90秒）</p>
     <h3>相手の先発</h3>
     <div id="s-opplead" class="row muted">（相手の6体を入れると選べます）</div>
     <p><label>先発の特性の発動（出たとき） <select id="s-oppab"><option value="">なし</option></select></label>
@@ -67,14 +76,18 @@ function renderSetup() {
     document.getElementById('s-ours')!.innerHTML = p ? `<h3>こちらの選出（3体を選び、先発を1体選ぶ）</h3><table><tr><th>選ぶ</th><th>先発</th><th>ポケモン</th></tr>${p.mons.map((m: any, i: number) =>
       `<tr><td><input type="checkbox" class="s-pick" data-i="${i}"></td><td><input type="radio" name="s-lead" value="${i}"></td><td>${esc(jn('species', m.species))}</td></tr>`).join('')}</table>` : '';
   };
-  (document.getElementById('s-party') as HTMLSelectElement).onchange = renderOurs; renderOurs();
   const oppIds = () => [...document.querySelectorAll<HTMLInputElement>('.s-opp')].map(x => resolve('species', x.value));
+  const trySelect = () => { const p = parties[Number((document.getElementById('s-party') as HTMLSelectElement).value)]; const ids = oppIds(); if (p && ids.every(Boolean)) computeSelection(p, ids); };
+  (document.getElementById('s-party') as HTMLSelectElement).onchange = () => { renderOurs(); lastIds = ''; renderLead(); };
+  renderOurs();
+  (document.getElementById('s-time') as HTMLInputElement).onchange = e => store(KEY_SELECT_TIME, Math.max(5, Math.min(85, Number((e.target as HTMLInputElement).value))) * 1000);
   // 6体の名前が変わったときだけ作り直す（入力欄の確定の後で押した先発のボタンが消えないように）
   let lastIds = '';
   const renderLead = () => {
     const ids = oppIds();
     if (ids.join(',') === lastIds) return;
     lastIds = ids.join(',');
+    trySelect();
     document.getElementById('s-opplead')!.innerHTML = ids.every(Boolean) ? ids.map((id, i) => `<label><input type="radio" name="s-opplead" value="${i}"> ${esc(jn('species', id))}</label>`).join(' ') : '（相手の6体を入れると選べます）';
     document.querySelectorAll<HTMLInputElement>('input[name="s-opplead"]').forEach(r => r.onchange = () => {
       const sp = dex.species[ids[Number(r.value)]];
@@ -104,8 +117,88 @@ function renderSetup() {
       turns: [], startedAt: new Date().toISOString(),
     };
     store(KEY_BATTLE, doc);
+    // 選出の計算をやめ、その Worker を片づける（対戦中の探索に計算機を回す）
+    selectGen++; selectWorkers?.forEach(w => w.terminate()); selectWorkers = null;
     await refresh();
   };
+}
+
+// ---- 選出のおすすめ ----
+let selectGen = 0;
+let selectWorkers: Worker[] | null = null;
+let selectReady: Promise<void> | null = null;
+async function fetchJson(url: string): Promise<any> { try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.json() : null; } catch { return null; } }
+function getSelectWorkers() {
+  if (!selectWorkers) {
+    selectWorkers = Array.from({ length: Math.max(2, navigator.hardwareConcurrency || 2) }, () => new Worker(new URL('../engine/browser/select-worker.ts', import.meta.url), { type: 'module' }));
+    selectReady = Promise.all(selectWorkers.map(w => new Promise<void>(res => { w.onmessage = ev => { if (ev.data.type === 'ready') res(); }; }))).then(() => undefined);
+  }
+  return { workers: selectWorkers, ready: selectReady! };
+}
+
+/** 相手の6体が決まったら：保存した表を読む。なければ近い構築からの見積もりと、その場の試合で補う。結果を出し、確率どおりにくじを引いて準備欄に入れる。 */
+async function computeSelection(p: any, ids: string[]) {
+  const gen = ++selectGen;
+  const el = document.getElementById('s-select');
+  if (!el) return;
+  el.className = '';
+  el.innerHTML = '<p>選出を計算しています…</p>';
+  const key = partyKey(p.mons);
+  const ours = p.mons.map(plainSet);
+  const index = await fetchJson(`${base}data/precomputed/index.json`);
+  const sorted = [...ids].sort().join(',');
+  const entry = (index?.tables ?? []).find((t: any) => t.party === p.id && t.partyKey === key && t.species.map(toID).sort().join(',') === sorted && t.games > 0);
+  const basis: string[] = [];
+  let stats: TableStats = emptyStats(), species: string[] = ids, theirs: any[] = [];
+  if (entry) {
+    const saved = await fetchJson(`${base}data/precomputed/${entry.file}`);
+    if (saved) {
+      stats = { n: saved.n, w: saved.w }; species = saved.team.species;
+      basis.push(`保存した表（${saved.team.season} ${saved.team.rank}位の構築、${saved.games}試合${saved.done ? '' : '、まだ途中'}）`);
+    }
+  }
+  const model = await fetchJson(`${base}data/precomputed/${p.id}/model.json`);
+  const prior = model && model.partyKey === key && model.tables > 0 ? (k: number) => predictCell(model, species, k) : undefined;
+  if (gen !== selectGen) return;
+  let sol, games = 0, ms = 0;
+  if (basis.length) {
+    sol = solveTable(stats, prior);
+  } else {
+    const priors = await fetchJson(`${base}data/priors/sets.json`);
+    theirs = ids.map(id => likelySet(priors?.species?.[id]));
+    if (theirs.some(x => !x)) { el.innerHTML = `<p class="warn">型の候補がない相手がいるため、選出を計算できません：${esc(ids.filter((_, i) => !theirs[i]).map(id => jn('species', id)).join('、'))}</p>`; return; }
+    basis.push(prior ? `近い構築からの見積もり（保存した表 ${model.tables}個・${model.games}試合から作った相性）` : '保存した表も近い構築の結果もありません（その場の試合だけなので、確率はあてになりません）');
+    const { workers, ready } = getSelectWorkers();
+    await ready;
+    const free = [...workers];
+    const waiting: ((w: Worker) => void)[] = [];
+    const acquire = () => new Promise<Worker>(res => { const w = free.pop(); if (w) res(w); else waiting.push(res); });
+    const release = (w: Worker) => { const f = waiting.shift(); if (f) f(w); else free.push(w); };
+    const play = async (r: number, c: number, seed: number) => {
+      const w = await acquire();
+      try {
+        return await new Promise<number>((res, rej) => { w.onmessage = ev => ev.data.type === 'game' ? res(ev.data.v) : rej(new Error(ev.data.message)); w.postMessage({ ours, theirs, r, c, iters: 25, seed }); });
+      } finally { release(w); }
+    };
+    const timeMs = load<number>(KEY_SELECT_TIME, 60000);
+    el.innerHTML = `<p>選出を計算しています…（その場の試合：<span id="s-prog">0</span>、最大${Math.round(timeMs / 1000)}秒）</p>`;
+    const r = await spotSolve({ stats, prior, timeMs, workers: workers.length, play, cancelled: () => gen !== selectGen,
+      onProgress: g => { const pe = document.getElementById('s-prog'); if (pe && gen === selectGen) pe.textContent = String(g); } });
+    sol = r.sol; games = r.games; ms = r.ms;
+    if (games) basis.push(`その場の試合 ${games}（${(ms / 1000).toFixed(0)}秒）`);
+  }
+  if (gen !== selectGen || !document.getElementById('s-select')) return;
+  // こちらの確率の高い順。くじは確率どおりに引く
+  const rows = sol.row.map((x: number, i: number) => ({ i, x })).filter((r: any) => r.x >= 0.005).sort((a: any, b: any) => b.x - a.x);
+  const name = (k: number) => { const pk = pickOf(k); return pk.order.map((i, n) => esc(jn('species', p.mons[i].species)) + (n === 0 ? '（先発）' : '')).join('・'); };
+  let u = Math.random() * rows.reduce((a: number, r: any) => a + r.x, 0), pick = rows[0].i;
+  for (const r of rows) { u -= r.x; if (u <= 0) { pick = r.i; break; } }
+  const pk = pickOf(pick);
+  document.querySelectorAll<HTMLInputElement>('.s-pick').forEach(x => { x.checked = pk.trio.includes(Number(x.dataset.i)); });
+  document.querySelectorAll<HTMLInputElement>('input[name="s-lead"]').forEach(x => { x.checked = Number(x.value) === pk.lead; });
+  el.innerHTML = `<p><strong>くじの結果：${name(pick)}</strong>（準備欄に入れました。選び直してもかまいません）</p>
+    <table><tr><th>選出（3体）</th><th>確率</th></tr>${rows.map((r: any) => `<tr${r.i === pick ? ' class="hl"' : ''}><td>${name(r.i)}</td><td>${Math.round(r.x * 100)}%</td></tr>`).join('')}</table>
+    <p class="muted">釣り合いの勝率 ${Math.round(sol.value * 100)}%（相手がこちらの確率を読んで一番よい選出をしても、この勝率が見込める）。もとにしたもの：${basis.map(esc).join('、')}。</p>`;
 }
 
 // ---- 対戦中の画面 ----

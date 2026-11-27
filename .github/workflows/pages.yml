@@ -3,6 +3,11 @@ name: サイトの公開
 on:
   push:
     branches: [main]
+  # 裏の計算が data/precomputed/ に保存した結果を公開し直す（Actions からの書き込みでは push の起動が起きないため）
+  workflow_run:
+    workflows: ['裏の計算']
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

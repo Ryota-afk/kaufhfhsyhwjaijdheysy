@@ -88,6 +88,7 @@ function render() {
     <p><select id="party-select">${options}</select> <button id="party-new">新しく作る</button> <button id="party-delete">このパーティを消す</button></p>
     ${repoOnly.length ? `<p>リポジトリにあって、このブラウザにないパーティ：${repoOnly.map(f => `<button class="repo-load" data-file="${esc(f)}">${esc(f)} を読み込む</button>`).join(' ')}</p>` : ''}
     <p><label>パーティの名前 <input id="party-name" value="${esc(current.name)}"></label></p>
+    <p><label><input type="checkbox" id="party-precompute" ${current.precompute ? 'checked' : ''}> よく使う（裏の計算で、上位構築への選出の表を先に解く。保存するとリポジトリに反映）</label></p>
   </section>
   <div class="mons">${current.mons.map((m, i) => monCard(m, i)).join('')}</div>
   <section class="box">
@@ -160,6 +161,7 @@ function bind() {
     parties.push(p); current = p; store(KEY_PARTIES, parties); message = 'リポジトリから読み込みました。'; render();
   });
   (document.getElementById('party-name') as HTMLInputElement).oninput = e => { current.name = (e.target as HTMLInputElement).value; };
+  (document.getElementById('party-precompute') as HTMLInputElement).onchange = e => { current.precompute = (e.target as HTMLInputElement).checked; };
 
   document.querySelectorAll<HTMLElement>('.mon').forEach(card => {
     const i = Number(card.dataset.slot);
@@ -223,7 +225,7 @@ async function save() {
     const token = getToken();
     if (!token) { message = 'このブラウザに保存しました（合い鍵がないので、リポジトリには書き込んでいません）。'; render(); return; }
     message = 'このブラウザに保存しました。リポジトリに書き込み中…'; render();
-    const body = JSON.stringify({ id: current.id, name: current.name, updatedAt: current.updatedAt, mons: current.mons }, null, 1) + '\n';
+    const body = JSON.stringify({ id: current.id, name: current.name, updatedAt: current.updatedAt, precompute: !!current.precompute, mons: current.mons }, null, 1) + '\n';
     await putFile(token, `data/parties/${current.id}.json`, body, `パーティを保存：${current.name}`);
     message = 'このブラウザとリポジトリに保存しました。'; render();
   } catch (e: any) {
