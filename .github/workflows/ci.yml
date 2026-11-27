@@ -16,5 +16,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: vendor/showdown
+          key: showdown-${{ hashFiles('tools/showdown/COMMIT') }}
+      - run: npm run showdown:setup
       - run: npm test
       - run: npm run build

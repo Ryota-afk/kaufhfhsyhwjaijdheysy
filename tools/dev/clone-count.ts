@@ -21,7 +21,7 @@ const walk = (v: any, p: string) => {
 walk(b, 'b');
 console.log(Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 25), path['DataMove'], b.log.length);
 import { makeCloner } from '../../src/engine/clone.ts';
-const clone = makeCloner(PS.Dex.forFormat(FORMAT));
+const clone = makeCloner(PS.Dex.forFormat(FORMAT), PS.Pokemon);
 for (let i = 0; i < 2000; i++) clone(b);
 let t0 = performance.now(); for (let i = 0; i < 20000; i++) clone(b);
 console.log('速い複製', ((performance.now() - t0) / 20000 * 1000).toFixed(1), 'µs');

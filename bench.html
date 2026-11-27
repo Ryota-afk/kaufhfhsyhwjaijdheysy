@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>速さの測定</title>
+  <link rel="stylesheet" href="/src/web/style.css">
+</head>
+<body>
+  <header><h1>速さの測定</h1></header>
+  <main>
+    <p>このPCのブラウザで、対戦の計算がどれだけ速く回るかを測ります。測定には約2分かかります。測定中は他のタブを閉じてください。</p>
+    <p><button id="start">測定を始める</button></p>
+    <div id="out"></div>
+  </main>
+  <script type="module" src="/src/web/bench.ts"></script>
+</body>
+</html>

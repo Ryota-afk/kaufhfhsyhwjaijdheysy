@@ -14,7 +14,7 @@ if (mode === 'fast') {
   const { applySpeedLayer } = await import('../../src/engine/fast.ts');
   const { makeCloner } = await import('../../src/engine/clone.ts');
   applySpeedLayer(PS, PS.Battle, FORMAT);
-  clone = makeCloner(PS.Dex.forFormat(FORMAT));
+  clone = makeCloner(PS.Dex.forFormat(FORMAT), PS.Pokemon);
 }
 const { ShowdownRunner } = await import('./showdown-adapter.ts');
 const dex = PS.Dex.forFormat(FORMAT);

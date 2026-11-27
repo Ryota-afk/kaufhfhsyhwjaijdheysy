@@ -8,7 +8,7 @@ const mode = process.argv[2] ?? 'fast';
 const secs = Number(process.argv[3] ?? 8);
 const PS = loadShowdown();
 if (mode === 'fast') applySpeedLayer(PS, PS.Battle, FORMAT);
-const clone = makeCloner(PS.Dex.forFormat(FORMAT));
+const clone = makeCloner(PS.Dex.forFormat(FORMAT), PS.Pokemon);
 const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8')).filter((t: any) => t.mons.every((m: any) => m.ability));
 const toSets = (t: any) => t.mons.map((m: any) => ({ name: '', species: m.species, item: m.item, ability: m.ability, nature: m.nature, evs: m.evs, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, moves: m.moves, level: 50, gender: '' }));
 let st = 7; const rnd = (n: number) => { st = (st * 1103515245 + 12345) & 0x7fffffff; return st % n; };

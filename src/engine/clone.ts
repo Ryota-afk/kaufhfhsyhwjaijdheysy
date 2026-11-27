@@ -1,23 +1,37 @@
 // Showdown の Battle を速く複製する。
-// 図鑑のデータ（種族・技・持ち物・特性・状態・ルール）は書き換わらないので共有し、
+// 図鑑のデータ（種族・技・持ち物・特性・状態・ルール）は Showdown 側で書き換え禁止（凍結）なので共有し、
 // それ以外（対戦の状態）は、参照のつながりを保ったまま深く写す。
-// Showdown 付属の State.serializeBattle / deserializeBattle と同じ結果になることを照合で確かめる。
+// 図鑑のデータかどうかは、クラスの名前ではなく実物のクラス（prototype）で見分ける。
+// サイトの組み立てでプログラムが縮められると、クラスの名前が変わるため。
 
-const STATIC_CTORS = new Set([
-  'Species', 'Item', 'Ability', 'Condition', 'Nature', 'TypeInfo', 'Format', 'RuleTable', 'ModdedDex', 'Learnset',
-]);
+export function makeCloner(dex: any, PokemonClass: any) {
+  // 図鑑のデータのクラス（実物から取り出す）
+  const staticProtos = new Set<object>();
+  const add = (o: any) => { if (o && typeof o === 'object') staticProtos.add(Object.getPrototypeOf(o)); };
+  add(dex);                                   // ModdedDex
+  add(dex.species.get('pikachu'));            // Species
+  add(dex.items.get('leftovers'));            // Item
+  add(dex.abilities.get('intimidate'));       // Ability
+  add(dex.conditions.get('brn'));             // Condition
+  add(dex.natures.get('adamant'));            // Nature
+  add(dex.types.get('Fire'));                 // TypeInfo
+  const format = dex.formats.get('gen9championsbssregmc');
+  add(format);                                // Format
+  add(dex.formats.getRuleTable(format));      // RuleTable
+  for (const k of Object.keys(dex)) {         // DexSpecies、DexMoves などの入れ物
+    const v = dex[k];
+    if (v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) !== Object.prototype && v.dex === dex) add(v);
+  }
+  const dataMoveProto = Object.getPrototypeOf(dex.moves.get('earthquake'));
+  const pokemonProto = PokemonClass.prototype;
+  staticProtos.delete(Object.prototype);
 
-export function makeCloner(dex: any) {
-  const moveCache: Map<string, any> | undefined = dex.moves?.moveCache;
   function isStatic(o: any): boolean {
-    const c = o.constructor;
-    if (!c) return false;
-    const n = c.name;
-    if (STATIC_CTORS.has(n) || n.startsWith('Dex')) return true;
-    if (n === 'DataMove') {
+    const proto = Object.getPrototypeOf(o);
+    if (staticProtos.has(proto)) return true;
+    if (proto === dataMoveProto) {
       // 図鑑の技そのもの（使用中の技の写しではない）なら共有
-      const cached = moveCache ? moveCache.get(o.id) : dex.moves.get(o.id);
-      return cached === o;
+      return dex.moves.get(o.id) === o;
     }
     return false;
   }
@@ -37,7 +51,6 @@ export function makeCloner(dex: any) {
     }
     return r;
   }
-
   const arrowCache = new WeakMap<Function, boolean>();
   function isArrow(fn: Function): boolean {
     let r = arrowCache.get(fn);
@@ -75,9 +88,10 @@ export function makeCloner(dex: any) {
         for (const x of v) s.add(copy(x));
         return s;
       }
-      const o = Object.create(Object.getPrototypeOf(v));
+      const proto = Object.getPrototypeOf(v);
+      const o = Object.create(proto);
       seen.set(v, o);
-      const isPokemon = v.constructor?.name === 'Pokemon';
+      const isPokemon = proto === pokemonProto;
       for (const k of Object.keys(v)) {
         const x = v[k];
         if (isPokemon && typeof x === 'function' && isArrow(x)) o[k] = rebinder(k, x)(o);

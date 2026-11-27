@@ -4,7 +4,7 @@ import { loadShowdown, FORMAT } from '../showdown/load.ts';
 import { makeCloner } from '../../src/engine/clone.ts';
 const PS = loadShowdown();
 const dex = PS.Dex.forFormat(FORMAT);
-const clone = makeCloner(dex);
+const clone = makeCloner(dex, PS.Pokemon);
 const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8')).filter((t: any) => t.mons.every((m: any) => m.ability));
 const toSets = (t: any) => t.mons.map((m: any) => ({ name: '', species: m.species, item: m.item, ability: m.ability, nature: m.nature, evs: m.evs, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, moves: m.moves, level: 50, gender: '' }));
 let rngState = 12345; const rnd = (n: number) => { rngState = (rngState * 1103515245 + 12345) & 0x7fffffff; return rngState % n; };

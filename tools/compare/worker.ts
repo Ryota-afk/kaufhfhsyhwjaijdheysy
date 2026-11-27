@@ -8,7 +8,7 @@ import { runJob, type Job } from './play.ts';
 const PS = loadShowdown();
 const cfg = workerData ?? { layer: { noLog: true, events: true, activeMove: true }, clone: true };
 applySpeedLayer(PS, PS.Battle, FORMAT, cfg.layer);
-const clone = makeCloner(PS.Dex.forFormat(FORMAT));
+const clone = makeCloner(PS.Dex.forFormat(FORMAT), PS.Pokemon);
 
 // 照合の仕組みの確かめ用：わざと誤りを入れる（COMPARE_INJECT=spikes で、まきびしを層の数によらず1/8にする）
 if (process.env.COMPARE_INJECT === 'spikes') {
