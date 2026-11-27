@@ -39,25 +39,41 @@ function mix(dists: Map<string, number>[]): Map<string, number> {
   return out;
 }
 const uniform = () => new Map(ALL_TRIOS.map(t => [key(t), 1 / ALL_TRIOS.length]));
+export const SMOOTH = 0.1;
+const smooth = (d: Map<string, number>) => new Map(ALL_TRIOS.map(t => [key(t), (1 - SMOOTH) * (d.get(key(t)) ?? 0) + SMOOTH / ALL_TRIOS.length]));
 
 export interface SelectionEntry { rank: number; has_info: boolean; base: { slots: number[][] }[]; conditional: { slots: number[][]; opp_species: string[] }[] }
 
 export class BenchModel {
   private teamDist = new Map<number, Map<string, number>>();      // 順位 → 3体の組の分布（基本）
   private rate = new Map<string, number>();                       // 種族 → 選出に入る割合
-  constructor(private teams: any[], private selections: SelectionEntry[]) {
+  /** learned：対戦記録から数えた選出（src/learn/merge.ts の Learned['bench']）。記録1件を上位構築1件分として足す。 */
+  constructor(private teams: any[], private selections: SelectionEntry[], learned?: { rates: Record<string, [number, number]>; teams: Record<string, { n: number; trios: Record<string, number> }> }) {
     const byRank = new Map(teams.map(t => [t.rank, t]));
     const sum = new Map<string, [number, number]>();
     for (const sel of selections) {
       const t = byRank.get(sel.rank); if (!t || !sel.has_info) continue;
       const src = sel.base.length ? sel.base : sel.conditional;
       if (!src.length) continue;
-      const d = mix(src.map(e => trioDist(e.slots)));
+      // 記事にない3体の組も、実際には出てくることがある。確率が0だと、見えた体に合う組がなくなり、記録からも数えられないので、
+      // どの組も同じ割合の分布を1割だけ混ぜる（1割は推定。2026-11-27）
+      const d = smooth(mix(src.map(e => trioDist(e.slots))));
       this.teamDist.set(sel.rank, d);
       t.mons.forEach((m: any, i: number) => {
         let p = 0; for (const [k, v] of d) if (k.split(',').map(Number).includes(i)) p += v;
         const s = sum.get(toID(m.species)) ?? [0, 0]; s[0] += p; s[1]++; sum.set(toID(m.species), s);
       });
+    }
+    if (learned) {
+      for (const [sp, [p, n]] of Object.entries(learned.rates)) { const s = sum.get(sp) ?? [0, 0]; sum.set(sp, [s[0] + p, s[1] + n]); }
+      for (const [rank, lt] of Object.entries(learned.teams)) {
+        if (!byRank.has(Number(rank)) || lt.n <= 0) continue;
+        // 記事の選出がない構築は、どの3体の組も同じ割合を1件分として始める
+        const base = this.teamDist.get(Number(rank)) ?? uniform();
+        const d = new Map<string, number>();
+        for (const t of ALL_TRIOS) { const k = key(t); d.set(k, ((base.get(k) ?? 0) + (lt.trios[k] ?? 0)) / (1 + lt.n)); }
+        this.teamDist.set(Number(rank), d);
+      }
     }
     for (const [sp, [p, n]] of sum) this.rate.set(sp, p / n);
   }
@@ -77,7 +93,7 @@ export class BenchModel {
       const sel = this.selections.find(s => s.rank === same.rank);
       const conds = (sel?.conditional ?? []).filter(c => c.opp_species.some(s => ourJa.includes(s)));
       if (!conds.length) return base;
-      return mix([base, remap(mix(conds.map(c => trioDist(c.slots))))]);
+      return mix([base, remap(smooth(mix(conds.map(c => trioDist(c.slots)))))]);
     }
     const r = ids.map(s => this.speciesRate(s));
     const out = new Map<string, number>();

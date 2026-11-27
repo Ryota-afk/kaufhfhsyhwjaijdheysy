@@ -20,12 +20,16 @@ self.onmessage = async (ev: MessageEvent) => {
   try {
     if (msg.type === 'load') {
       const [priors, teams, selections] = await Promise.all([msg.priorsUrl, msg.teamsUrl, msg.selectionsUrl].map((u: string) => fetch(u).then(r => r.json())));
-      AnalyzerClass = makeAnalyzer(PS, FORMAT, priors, teams, selections);
+      // 対戦記録から数えた割合（まだ記録がなければ、ないまま）
+      const learned = msg.learnedUrl ? await fetch(msg.learnedUrl, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null) : null;
+      AnalyzerClass = makeAnalyzer(PS, FORMAT, priors, teams, selections, learned);
       (self as any).postMessage({ type: 'load' });
     } else if (msg.type === 'replay') {
       // 対戦の記録（準備・始まり・各ターン・状態の直し）を最初から当て直す
       an = new AnalyzerClass!(msg.battle.setup);
       an.start(msg.battle.start);
+      // 最初のターンの前に「今の状態」で直したもの
+      if (msg.battle.startVisible) an.applyVisible(an.pos, msg.battle.startVisible);
       for (const step of msg.battle.turns) {
         an.record(step.input);
         if (step.visible) an.applyVisible(an.pos, step.visible);

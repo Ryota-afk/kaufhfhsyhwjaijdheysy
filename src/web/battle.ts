@@ -11,6 +11,7 @@ import { pickOf } from '../select/cell.ts';
 import { partyKey, plainSet } from '../select/key.ts';
 import { predictCell } from '../select/model.ts';
 import { likelySet } from '../select/likely.ts';
+import { mergePriors } from '../learn/merge.ts';
 
 const base = import.meta.env.BASE_URL;
 const app = document.getElementById('app')!;
@@ -164,7 +165,7 @@ async function computeSelection(p: any, ids: string[]) {
   if (basis.length) {
     sol = solveTable(stats, prior);
   } else {
-    const priors = await fetchJson(`${base}data/priors/sets.json`);
+    const priors = mergePriors(await fetchJson(`${base}data/priors/sets.json`), await fetchJson(`${base}data/priors/learned.json`));
     theirs = ids.map(id => likelySet(priors?.species?.[id]));
     if (theirs.some(x => !x)) { el.innerHTML = `<p class="warn">型の候補がない相手がいるため、選出を計算できません：${esc(ids.filter((_, i) => !theirs[i]).map(id => jn('species', id)).join('、'))}</p>`; return; }
     basis.push(prior ? `近い構築からの見積もり（保存した表 ${model.tables}個・${model.games}試合から作った相性）` : '保存した表も近い構築の結果もありません（その場の試合だけなので、確率はあてになりません）');
@@ -412,7 +413,6 @@ async function refresh() {
   if (!doc) { renderSetup(); return; }
   app.innerHTML = '<p>記録から盤面を作っています…</p>';
   view = (await ask({ type: 'replay', battle: doc })).view;
-  if ((doc as any).startVisible && !doc.turns.length) view = (await ask({ type: 'edit', visible: (doc as any).startVisible })).view;
   result = null;
   renderBattle();
   runSearch();
@@ -424,7 +424,7 @@ async function main() {
     for (const [id, name] of Object.entries(ja[kind] as Record<string, string>)) { lookup[kind].set(id, id); lookup[kind].set(kata(name), id); }
   }
   for (const [id, al] of Object.entries(ja.speciesAliases ?? {}) as [string, string[]][]) for (const a of al) lookup.species.set(kata(a), id);
-  await ask({ type: 'load', priorsUrl: `${base}data/priors/sets.json`, teamsUrl: `${base}data/seed/teams_m7.json`, selectionsUrl: `${base}data/seed/selections_m7.json` });
+  await ask({ type: 'load', priorsUrl: `${base}data/priors/sets.json`, teamsUrl: `${base}data/seed/teams_m7.json`, selectionsUrl: `${base}data/seed/selections_m7.json`, learnedUrl: `${base}data/priors/learned.json` });
   await refresh();
 }
 (window as any).__battle = { get doc() { return doc; }, get view() { return view; }, get result() { return result; }, get searching() { return searching; } };

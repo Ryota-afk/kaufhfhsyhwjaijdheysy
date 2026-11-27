@@ -7,7 +7,7 @@
 //  4. 探索が上位3手を返す
 //  5. 再現が入力と合った割合
 // 使い方：npx tsx tools/battle/sim-check.ts [試合数=30] [種=1]
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { loadShowdown, FORMAT } from '../showdown/load.ts';
 import { makeRunner } from '../../src/engine/runner.ts';
 import { makeCloner } from '../../src/engine/clone.ts';
@@ -68,6 +68,8 @@ for (let g = 0; g < GAMES; g++) {
   const r0 = reveal(sinceStart(0), oppSpecies[oppLead]);
   an.start({ oppLead, oppAbility: r0.ability, oppItem: r0.item });
   games++;
+  // LOGDIR があれば、画面で保存するのと同じ形の対戦記録と、確かめ用の本当の型（別のファイル）を書き出す
+  const logDoc: any = { id: `sim${SEED}-${g}`, partyName: 'チーム2', setup: an.setup, start: { oppLead, oppAbility: r0.ability, oppItem: r0.item }, turns: [], startedAt: '' };
   for (let t = 0; t < 40 && !b.ended; t++) {
     // 両者の行動：ランダム
     const l0 = truth.legalActions(0), l1 = truth.legalActions(1);
@@ -120,6 +122,7 @@ for (let g = 0; g < GAMES; g++) {
       console.log('本当の素早さ', b.sides.map((sd: any) => `${sd.active[0].name} ${sp(sd.active[0])} ${JSON.stringify(sd.active[0].boosts)} ${sd.active[0].status} ${sd.active[0].item}`).join(' / '), 'TR', !!b.field.pseudoWeather.trickroom);
       console.log('記録係の始めの盤面', JSON.stringify(an.pos.sides.map(x => ({ a: x.mons[x.active].set.species, b: x.mons[x.active].boosts, st: x.mons[x.active].status, mega: x.mons[x.active].mega }))), JSON.stringify(an.pos.field));
     }
+    logDoc.turns.push({ input: JSON.parse(JSON.stringify(input)) });
     const res = an.record(input);
     turns++; scores.push(res.score); if (res.score === 0) exact++;
     // 1. 本当の型が消えていない
@@ -150,6 +153,11 @@ for (let g = 0; g < GAMES; g++) {
       if (!tp.length) searchBad++;
       else for (const x of tp) an.describe(x.choice);
     }
+  }
+  if (process.env.LOGDIR) {
+    mkdirSync(`${process.env.LOGDIR}/logs`, { recursive: true }); mkdirSync(`${process.env.LOGDIR}/truth`, { recursive: true });
+    writeFileSync(`${process.env.LOGDIR}/logs/${logDoc.id}.json`, JSON.stringify(logDoc));
+    writeFileSync(`${process.env.LOGDIR}/truth/${logDoc.id}.json`, JSON.stringify({ rank: team.rank, oppIdx, oppSets: oppIdx.map(i => team.mons[i]) }));
   }
 }
 const sorted = [...scores].sort((a, b) => a - b);

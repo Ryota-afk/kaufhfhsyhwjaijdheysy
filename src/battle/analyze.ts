@@ -9,6 +9,7 @@ import { expandPrior, OpponentSet, clueItem, clueAbility, type PriorEntry } from
 void clueAbility;
 import { makeCalc, shownPercent } from '../infer/calc.ts';
 import { BenchModel } from '../infer/bench.ts';
+import { mergePriors, type Learned } from '../learn/merge.ts';
 
 const toID = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -45,11 +46,13 @@ export interface StartInput { oppLead: number; oppAbility?: string; oppItem?: st
 
 interface OppMonState { seen: boolean; hpPct: number; status: StatusID; fainted: boolean }
 
-export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<string, PriorEntry> }, teams: any[], selections: any[]) {
+/** learned：対戦記録から数えた型の割合と選出の傾向（data/priors/learned.json）。あれば最初の確率に混ぜる。 */
+export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Record<string, PriorEntry> }, teams: any[], selections: any[], learned?: Learned | null) {
+  const priors = mergePriors(basePriors, learned);
   const Runner = makeRunner(PS, FORMAT);
   const dex = PS.Dex.forFormat(FORMAT);
   const calc = makeCalc(PS, FORMAT);
-  const bench = new BenchModel(teams, selections);
+  const bench = new BenchModel(teams, selections, learned?.bench);
   const maxhpOf = (set: MonSet) => dex.species.get(set.species).baseStats.hp + set.evs.hp + 75;
 
   // 使った側のHPがそのターンのうちに動く技（回復・吸い取り・反動・やどりぎのタネ・みがわり等）

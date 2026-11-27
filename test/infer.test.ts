@@ -166,10 +166,11 @@ test('控え：記事の選出の枠どおりに3体の組ができ、見えた�
   const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8'));
   const sels = JSON.parse(readFileSync('data/seed/selections_m7.json', 'utf8'));
   const bm = new BenchModel(teams, sels);
-  // 1位の構築（基本選出 [1],[2],[3]）とまったく同じ6体なら、1・2・3番が確率1
+  // 1位の構築（基本選出 [1],[2],[3]）とまったく同じ6体なら、1・2・3番が確率 0.9＋0.1×10/20＝0.95、ほかは 0.1×10/20＝0.05
+  // （記事にない組も出るので、どの組も同じ割合の分布を1割混ぜている。1体は20通りの組のうち10通りに入る）
   const t1 = teams.find((t: any) => t.rank === 1);
   const inc = BenchModel.inclusion(bm.prior(t1.mons.map((m: any) => m.species), []), []);
-  assert.ok(close(inc[1], 1) && close(inc[2], 1) && close(inc[3], 1) && close(inc[0], 0), inc.join());
+  assert.ok(close(inc[1], 0.95) && close(inc[2], 0.95) && close(inc[3], 0.95) && close(inc[0], 0.05), inc.join());
   // 知らない6体：見えた3体が確率1、残りは0。見えた1体なら、合計はいつも3
   const unknown = ['Pikachu', 'Snorlax', 'Garchomp', 'Gengar', 'Lucario', 'Salamence'];
   const dist = bm.prior(unknown, []);
