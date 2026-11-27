@@ -6,7 +6,7 @@
   "description": "ポケモンチャンピオンズ（シングル）の選出・対戦判断サイト",
   "scripts": {
     "dev": "vite",
-    "build": "tsx tools/browser/build-showdown.ts && tsc --noEmit && vite build",
+    "build": "tsx tools/browser/build-showdown.ts && tsx tools/browser/build-showdown.ts full && tsc --noEmit && vite build",
     "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "showdown:setup": "bash tools/showdown/setup.sh",
     "gen:data": "tsx tools/gen-data.ts",

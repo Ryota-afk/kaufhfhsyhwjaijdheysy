@@ -14,7 +14,9 @@ import { resolve, relative, dirname } from 'node:path';
 const ROOT = resolve(import.meta.dirname, '../..');
 const SD = resolve(ROOT, 'vendor/showdown/dist');
 if (!existsSync(SD)) throw new Error('先に npm run showdown:setup を実行してください。');
-const OUT = resolve(ROOT, '.build/showdown-browser.mjs');
+// 引数 full：覚えられる技の表とチームの検査も入れる（パーティの入力画面用）。なし：対戦の処理だけ（探索用、小さい）
+const FULL = process.argv[2] === 'full';
+const OUT = resolve(ROOT, FULL ? '.build/showdown-full.mjs' : '.build/showdown-browser.mjs');
 const virt = (abs: string) => '/sd/' + relative(SD, abs).split('\\').join('/');
 
 // 読み込むデータのモジュール（基本と champions）
@@ -40,9 +42,17 @@ const entrySrc = [
   ...entries.map(([, f], i) => `import * as m${i} from ${JSON.stringify(f)};`),
   `const M = globalThis.__SD_MODULES;`,
   ...entries.map(([v], i) => `M[${JSON.stringify(v)}] = m${i};`),
-  `M['/sd/data/learnsets'] = { Learnsets: {} };`,
-  `M['/sd/data/mods/champions/learnsets'] = { Learnsets: {} };`,
-  `export const PS = { Battle: battle.Battle, Dex: dex.Dex, Teams: teams.Teams, Side: side.Side, Pokemon: pokemon.Pokemon, State: state.State, Utils: utils.Utils, PRNG: prng.PRNG };`,
+  ...(FULL ? [
+    `import * as ls0 from ${JSON.stringify(resolve(SD, 'data/learnsets.js'))};`,
+    `import * as ls1 from ${JSON.stringify(resolve(SD, 'data/mods/champions/learnsets.js'))};`,
+    `import * as tv from ${JSON.stringify(resolve(SD, 'sim/team-validator.js'))};`,
+    `M['/sd/data/learnsets'] = ls0;`,
+    `M['/sd/data/mods/champions/learnsets'] = ls1;`,
+  ] : [
+    `M['/sd/data/learnsets'] = { Learnsets: {} };`,
+    `M['/sd/data/mods/champions/learnsets'] = { Learnsets: {} };`,
+  ]),
+  `export const PS = { Battle: battle.Battle, Dex: dex.Dex, Teams: teams.Teams, Side: side.Side, Pokemon: pokemon.Pokemon, State: state.State, Utils: utils.Utils, PRNG: prng.PRNG${FULL ? ', TeamValidator: tv.TeamValidator' : ''} };`,
 ].join('\n');
 
 // require(変数) の受け口。データのモジュールより先に用意する（banner）。

@@ -7,3 +7,14 @@ h1 { font-size: 1.3rem; }
 table { border-collapse: collapse; }
 td, th { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
 .muted { color: var(--muted); }
+nav a { margin-right: 12px; }
+.box { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 12px 0; }
+.mons { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 12px; }
+.mon h3 { margin: 4px 0; font-size: 1rem; }
+.mon p { margin: 6px 0; }
+.mon input:not([type]) , .mon input[list] { width: 12em; }
+.sp input { width: 4em; }
+.sp td, .sp th { padding: 2px 6px; }
+.warn { color: #c0392b; }
+@media (prefers-color-scheme: dark) { .warn { color: #ff8a80; } }
+button.primary { font-weight: bold; padding: 4px 16px; }

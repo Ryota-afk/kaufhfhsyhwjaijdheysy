@@ -2,3 +2,6 @@
 declare module '@showdown' {
   export const PS: any;
 }
+declare module '@showdown-full' {
+  export const PS: any;
+}
