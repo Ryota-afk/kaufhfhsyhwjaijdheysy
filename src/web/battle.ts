@@ -140,7 +140,8 @@ function renderBattle() {
     <div id="result">${searching ? '<p>計算中…</p>' : top.length ? `<table><tr><th></th><th>行動</th><th>勝率</th><th>誤差</th><th>回数</th></tr>${top.map((t: any, i: number) =>
       `<tr><td>${i + 1}</td><td><strong>${esc(choiceLabel(t.choice))}</strong></td><td>${Math.round(t.winRate * 100)}%</td><td>±${Math.round(2 * t.se * 100)}</td><td>${t.n}</td></tr>`).join('')}</table>
       ${top.some((t: any) => t.closeToNext) ? '<p class="warn">勝率の差が誤差より小さい手があります（どちらを選んでも大きくは変わらない見込み）。</p>' : ''}
-      <p class="muted">探索 ${result.iters} 回、${(result.ms / 1000).toFixed(1)} 秒。勝率は「この手を選んだときに勝つ見込み」の推定で、誤差は2×標準誤差。</p>` : '<p class="muted">まだ計算していません。</p>'}
+      <p class="muted" id="r-time">再現 ${(result.prepMs / 1000).toFixed(1)}秒＋探索 ${(result.ms / 1000).toFixed(1)}秒（${result.iters}回）＝合計 ${(result.totalMs / 1000).toFixed(1)}秒。勝率は「この手を選んだときに勝つ見込み」の推定で、誤差は2×標準誤差。</p>
+      ${result.totalMs > result.budget + 50 ? `<p class="warn">合計が計算時間（${(result.budget / 1000).toFixed(0)}秒）を超えました。ターンの再現に時間がかかっています。</p>` : ''}` : '<p class="muted">まだ計算していません。</p>'}
     <p><button id="b-search">計算する</button> <label class="muted">計算時間 <input id="b-time" type="number" min="2" max="40" value="${Math.round(load<number>(KEY_TIME, 10000) / 1000)}" style="width:4em">秒</label></p></div>
   </section>
   <section class="box"><h2>相手の型の推定（${esc(jn('species', doc!.setup.oppSpecies[oaIdx]))}）</h2>
@@ -290,20 +291,26 @@ async function recordTurn() {
   doc!.turns.push({ input });
   store(KEY_BATTLE, doc);
   // 前のターンのおすすめを、押した時点で消す（記録の途中で古いおすすめを見せない）
+  // 計算時間は「記録して計算」を押した時点から数える（ターンの再現にかかった時間を、探索の時間から引く）
+  const t0 = performance.now();
   result = null; searching = true;
   (document.getElementById('result') as HTMLElement).innerHTML = '<p>記録して計算中…</p>';
   try { view = (await ask({ type: 'record', input })).view; } finally { searching = false; }
   renderBattle();
-  runSearch();
+  runSearch(t0);
 }
 
-async function runSearch() {
+/** t0 から数えて、計算時間（既定10秒）の中に収める。探索の後のまとめと表示の分として、少し残して打ち切る。 */
+async function runSearch(t0 = performance.now()) {
   if (!view) return;
   searching = true; renderBattle();
   try {
-    const timeMs = load<number>(KEY_TIME, 10000);
+    const budget = load<number>(KEY_TIME, 10000);
     const { positions } = await ask({ type: 'dets', k: 8, seed: Date.now() & 0xffffffff });
-    result = await pool.run(positions as Position[], timeMs);
+    const prepMs = performance.now() - t0;
+    // 再現が長すぎて残りがないときも、手を出すために最低1秒は探索する
+    const r = await pool.run(positions as Position[], Math.max(1000, budget - prepMs - 300));
+    result = { ...r, prepMs, totalMs: performance.now() - t0, budget };
   } catch (e: any) { message = `計算のエラー：${e.message}`; }
   searching = false; renderBattle();
 }

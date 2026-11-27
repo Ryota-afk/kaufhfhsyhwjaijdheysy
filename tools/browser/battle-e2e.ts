@@ -69,7 +69,7 @@ const leadAb = startLines.map(l => /^\|-ability\|p2a: [^|]*\|([^|]*)/.exec(l)?.[
 if (leadAb) await select('#s-oppab', toID(leadAb));
 const setupOps = ops; ops = 0;
 await click('#s-start');
-const results: { turn: number; ms: number; ops: number; top: string[] }[] = [];
+const results: { turn: number; ms: number; ops: number; top: string[]; time?: string }[] = [];
 const waitResult = async () => {
   const t0 = Date.now();
   try {
@@ -140,7 +140,7 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
   const turnOps = ops;
   await page.click('#t-record');
   const ms2 = await waitResult();
-  results.push({ turn: t + 1, ms: ms2, ops: turnOps + 1, top: await page.$$eval('#result tr td strong', (xs: any[]) => xs.map(x => x.textContent)) });
+  results.push({ turn: t + 1, ms: ms2, ops: turnOps + 1, top: await page.$$eval('#result tr td strong', (xs: any[]) => xs.map(x => x.textContent)), time: (await page.textContent('#r-time'))?.split('。')[0] });
   // 3ターン目の後で読み込み直す
   if (t === 2) {
     const before = await page.evaluate(() => JSON.stringify((window as any).__battle.view.pos));
@@ -164,9 +164,11 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
 await page.screenshot({ path: '.build/battle.png', fullPage: true });
 await browser.close();
 try { process.kill(-server.pid!); } catch { /* もう止まっている */ }
-for (const r of results) console.log(`ターン${r.turn}：上位 ${r.top.join(' ／ ')}（${r.top.length}手）、記録→表示 ${(r.ms / 1000).toFixed(1)}秒、操作 ${r.ops}回`);
+for (const r of results) console.log(`ターン${r.turn}：上位 ${r.top.join(' ／ ')}（${r.top.length}手）、記録→表示 ${(r.ms / 1000).toFixed(1)}秒、操作 ${r.ops}回${r.time ? `（画面の表示：${r.time}）` : ''}`);
 console.log(`準備の操作 ${setupOps}回`);
 const allThree = results.every(r => r.top.length >= 2);
+const inTime = results.filter(r => r.turn > 0).every(r => r.ms <= SECS * 1000);
+console.log(`${inTime ? '合格' : '不合格'}：毎ターン、「記録して計算」から表示まで ${SECS}秒以内`);
 console.log(`${allThree ? '合格' : '不合格'}：毎ターン、上位の手が出た`);
 console.log(`${errors.length ? '不合格' : '合格'}：ページのエラー ${errors.length}件`, errors.slice(0, 3));
 writeFileSync('.build/battle-e2e.json', JSON.stringify({ results, setupOps, errors }, null, 1));
