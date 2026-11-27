@@ -1,0 +1,133 @@
+{
+ "id": "p202611270338021706",
+ "name": "チーム2",
+ "updatedAt": "2026-11-27T03:45:54.444Z",
+ "mons": [
+  {
+   "species": "Salamence",
+   "item": "Salamencite",
+   "ability": "Intimidate",
+   "nature": "Adamant",
+   "evs": {
+    "hp": 1,
+    "atk": 24,
+    "def": 0,
+    "spa": 0,
+    "spd": 9,
+    "spe": 32
+   },
+   "moves": [
+    "Double-Edge",
+    "Earthquake",
+    "Dragon Dance",
+    "Roost"
+   ],
+   "gender": "F"
+  },
+  {
+   "species": "Lucario",
+   "item": "Lucarionite Z",
+   "ability": "Inner Focus",
+   "nature": "Timid",
+   "evs": {
+    "hp": 2,
+    "atk": 0,
+    "def": 0,
+    "spa": 32,
+    "spd": 0,
+    "spe": 32
+   },
+   "moves": [
+    "Aura Sphere",
+    "Vacuum Wave",
+    "Steel Beam",
+    "Nasty Plot"
+   ],
+   "gender": "M"
+  },
+  {
+   "species": "Garchomp",
+   "item": "Chesto Berry",
+   "ability": "Rough Skin",
+   "nature": "Adamant",
+   "evs": {
+    "hp": 32,
+    "atk": 0,
+    "def": 17,
+    "spa": 0,
+    "spd": 15,
+    "spe": 2
+   },
+   "moves": [
+    "Earthquake",
+    "Dragon Tail",
+    "Stealth Rock",
+    "Rest"
+   ],
+   "gender": "M"
+  },
+  {
+   "species": "Primarina",
+   "item": "Sitrus Berry",
+   "ability": "Liquid Voice",
+   "nature": "Modest",
+   "evs": {
+    "hp": 32,
+    "atk": 0,
+    "def": 6,
+    "spa": 4,
+    "spd": 0,
+    "spe": 24
+   },
+   "moves": [
+    "Moonblast",
+    "Psychic Noise",
+    "Aqua Jet",
+    "Encore"
+   ],
+   "gender": "M"
+  },
+  {
+   "species": "Rotom-Heat",
+   "item": "Leftovers",
+   "ability": "Levitate",
+   "nature": "Bold",
+   "evs": {
+    "hp": 32,
+    "atk": 0,
+    "def": 32,
+    "spa": 0,
+    "spd": 1,
+    "spe": 1
+   },
+   "moves": [
+    "Overheat",
+    "Will-O-Wisp",
+    "Volt Switch",
+    "Pain Split"
+   ],
+   "gender": ""
+  },
+  {
+   "species": "Kleavor",
+   "item": "Focus Sash",
+   "ability": "Sharpness",
+   "nature": "Adamant",
+   "evs": {
+    "hp": 2,
+    "atk": 32,
+    "def": 0,
+    "spa": 0,
+    "spd": 0,
+    "spe": 32
+   },
+   "moves": [
+    "Stone Axe",
+    "X-Scissor",
+    "Close Combat",
+    "Feint"
+   ],
+   "gender": "M"
+  }
+ ]
+}
