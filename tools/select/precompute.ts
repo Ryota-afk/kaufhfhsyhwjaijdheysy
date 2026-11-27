@@ -1,6 +1,7 @@
 // 先回りの計算：「よく使う」の印をつけたパーティ × 上位構築ごとに、選出の表（60×60）を AIどうしの対戦で埋め、
 // data/precomputed/<パーティの番号>/<構築の順位>.json に保存する。時間で区切り、次の回は保存した数から続ける。
 // 使い方：npx tsx tools/select/precompute.ts [--minutes 分] [--shard 番号 --shards 数] [--threads 数] [--party ファイル] [--ranks 1,3,4]
+//   確かめ用：[--out 保存先] [--iters 探索の回数 --n0 最初の試合数 --levels 16,32,64]
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { partyKey as keyOf, plainSet } from '../../src/select/key.ts';
@@ -13,7 +14,9 @@ const MINUTES = Number(arg('minutes', '10')), SHARD = Number(arg('shard', '0')),
 const THREADS = Number(arg('threads', String(availableParallelism())));
 const SAVE_EVERY_MS = 3 * 60 * 1000;
 // AI と試合数の設定（docs/select.md の測定で決めた値）。変えたら保存済みの表は作り直しになる
-const AI = { iters: 25, n0: 4, levels: [16, 32, 64] };
+const AI = { iters: Number(arg('iters', '25')), n0: Number(arg('n0', '4')), levels: arg('levels', '16,32,64').split(',').filter(Boolean).map(Number) };
+// 保存先（確かめ用に別の場所へ書ける）
+const OUT = arg('out', 'data/precomputed');
 const deadline = Date.now() + MINUTES * 60 * 1000;
 
 const PS = loadShowdown();
@@ -38,7 +41,7 @@ console.log(`対象：パーティ ${parties.length}、構築 ${teams.length}、
 interface Saved { party: string; partyKey: string; team: { rank: number; season: string; species: string[] }; ai: typeof AI; n: number[]; w: number[]; level: number; done: boolean; games: number; seconds: number; solution?: any; updatedAt: string }
 // パーティの中身（6体の型）が同じかどうかの目印。名前や印を変えただけでは作り直さない
 const partyKey = (party: any) => keyOf(party.mons);
-const fileOf = (party: any, team: any) => `data/precomputed/${party.id}/${team.rank}.json`;
+const fileOf = (party: any, team: any) => `${OUT}/${party.id}/${team.rank}.json`;
 function load(party: any, team: any): Saved {
   const f = fileOf(party, team);
   const fresh: Saved = { party: party.id, partyKey: partyKey(party), team: { rank: team.rank, season: team.season, species: team.mons.map((m: any) => m.species) }, ai: AI, ...emptyStats(), level: 0, done: false, games: 0, seconds: 0, updatedAt: '' };
@@ -49,7 +52,7 @@ function load(party: any, team: any): Saved {
   return s;
 }
 function save(s: Saved, party: any, team: any) {
-  mkdirSync(`data/precomputed/${party.id}`, { recursive: true });
+  mkdirSync(`${OUT}/${party.id}`, { recursive: true });
   const st: TableStats = { n: s.n, w: s.w };
   if (s.n.every(x => x > 0)) {
     const sol = solveTable(st);
