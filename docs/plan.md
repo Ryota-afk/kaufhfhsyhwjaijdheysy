@@ -14,7 +14,7 @@
 |---|---|---|---|---|---|
 | P0-1 | リポジトリの骨組み（TypeScript、Vite、テスト） | 全部 | `npm ci && npm test && npm run build` が通る | 実行 | 済み |
 | P0-2 | data/seed/ に初期データ | G1, G2 | teams_m7.json と selections_m7.json が置かれ、Showdown の検査結果を記録 | `npm run seed:check` | 済み（docs/seed-check.md） |
-| P0-3 | GitHub Pages | G1, G2 | 公開URLでサイトが開ける | ブラウザ（Playwright）で開く | 利用者が Pages を有効にするのを待っている |
+| P0-3 | GitHub Pages | G1, G2 | 公開URLでサイトが開ける | ブラウザ（Playwright）で開く | 済み（2026-11-27、トップと測定ページを確認） |
 | P0-4 | 時刻で動く Actions（空の作業） | G3 | 決めた時刻に1回動いた記録がある | Actions の実行記録 | 段階0（毎日 15:47 UTC） |
 | P1-1 | エンジン用のデータ | G2 | 206構築の全種族・技・持ち物・特性が引ける | 照合 | 済み（Showdown の図鑑をそのまま使う。src/engine/data/dex.json は対応状況の点検用に書き出したもの） |
 | P1-2 | 対戦エンジン（Showdown＋速さの層） | G2, G3 | 盤面から1ターンを進められ、複製できる。ブラウザで動き、Node と結果が一致する。速さの目標に足りるかを基準を決めて判断する | `tools/browser/check.ts` | 判断の提案まで済み（docs/engine.md）。利用者の確認と、i5-5300 実機での測定を待っている |
