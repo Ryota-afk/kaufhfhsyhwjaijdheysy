@@ -177,7 +177,7 @@ async function computeSelection(p: any, ids: string[]) {
     const play = async (r: number, c: number, seed: number) => {
       const w = await acquire();
       try {
-        return await new Promise<number>((res, rej) => { w.onmessage = ev => ev.data.type === 'game' ? res(ev.data.v) : rej(new Error(ev.data.message)); w.postMessage({ ours, theirs, r, c, iters: 25, seed }); });
+        return await new Promise<number>((res, rej) => { w.onmessage = ev => ev.data.type === 'game' ? res(ev.data.v) : rej(new Error(ev.data.message)); w.postMessage({ ours, theirs, r, c, iters: 100, seed }); });
       } finally { release(w); }
     };
     const timeMs = load<number>(KEY_SELECT_TIME, 60000);

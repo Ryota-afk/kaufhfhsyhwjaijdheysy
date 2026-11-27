@@ -14,7 +14,7 @@ const MINUTES = Number(arg('minutes', '10')), SHARD = Number(arg('shard', '0')),
 const THREADS = Number(arg('threads', String(availableParallelism())));
 const SAVE_EVERY_MS = 3 * 60 * 1000;
 // AI と試合数の設定（docs/select.md の測定で決めた値）。変えたら保存済みの表は作り直しになる
-const AI = { iters: Number(arg('iters', '25')), n0: Number(arg('n0', '4')), levels: arg('levels', '16,32,64').split(',').filter(Boolean).map(Number) };
+const AI = { iters: Number(arg('iters', '100')), n0: Number(arg('n0', '4')), levels: arg('levels', '16,32').split(',').filter(Boolean).map(Number) };
 // 保存先（確かめ用に別の場所へ書ける）
 const OUT = arg('out', 'data/precomputed');
 const deadline = Date.now() + MINUTES * 60 * 1000;

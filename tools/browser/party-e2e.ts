@@ -39,6 +39,8 @@ const check = (cond: boolean, what: string) => { console.log(`${cond ? '合格' 
 await page.goto(url);
 await page.waitForSelector('.mon', { timeout: 60000 });
 await page.fill('#party-name', 'チーム2');
+// 「よく使う」の印をつける（裏の計算の対象になる）
+await page.check('#party-precompute');
 for (const [i, m] of screen.entries()) {
   const card = () => page.locator(`.mon[data-slot="${i}"]`);
   const sp = ja.species[toID(m.species)];
@@ -85,6 +87,7 @@ if (puts.length) {
   const got = content.mons.map((m: any) => ({ species: m.species, item: m.item, ability: m.ability, nature: m.nature, evs: m.evs, moves: m.moves, gender: m.gender }));
   check(JSON.stringify(got) === JSON.stringify(want) && content.name === 'チーム2', '書き込む中身が、入力した6体と名前に一致する');
   check(!JSON.stringify(p.body).includes('github_pat_'), '書き込む中身に合い鍵が入っていない');
+  check(content.precompute === true, '「よく使う」の印が書き込む中身に入っている');
 }
 await page.screenshot({ path: '.build/party.png', fullPage: true });
 
@@ -109,6 +112,7 @@ const expectRestored = screen.map((m: any) => ({
 }));
 check(JSON.stringify(restored) === JSON.stringify(expectRestored), '再読み込み後、6体の名前・持ち物・特性・性格・能力ポイント・技が戻る');
 check(await page.inputValue('#party-name') === 'チーム2', '再読み込み後、パーティの名前が戻る');
+check(await page.isChecked('#party-precompute'), '再読み込み後、「よく使う」の印が戻る');
 if (errors.length) console.log('ページのエラー：', errors);
 check(!errors.length, 'ページのエラーがない');
 await browser.close();
