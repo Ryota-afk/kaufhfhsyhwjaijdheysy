@@ -74,7 +74,8 @@ jobs:
           key: showdown-${{ hashFiles('tools/showdown/COMMIT') }}
       - run: npm run showdown:setup
       - name: 設定の比べ
-        run: npx tsx tools/learn/compare.ts --minutes ${{ github.event.inputs.minutes || '320' }}
+        # 1試合が長いと（決着なしで60ターン、Actions で約28分）区切りを超えるので、選出の表より短い300分で区切る
+        run: npx tsx tools/learn/compare.ts --minutes ${{ github.event.inputs.minutes || '300' }}
       - name: 結果をリポジトリに保存
         if: always()
         run: |
