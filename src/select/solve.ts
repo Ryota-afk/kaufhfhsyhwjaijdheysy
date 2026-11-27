@@ -28,33 +28,49 @@ export function solveMatrix(A: number[][]): GameSolution {
   const obj = new Float64Array(W);
   for (let j = 0; j < n; j++) obj[j] = -1;
   const basis = Array.from({ length: m }, (_, i) => n + i);
-  const EPS = 1e-12;
-  for (let it = 0; it < 10000; it++) {
-    // 入る変数：目的の行で負のもののうち、いちばん番号が小さいもの（ブランドの規則。堂々めぐりしない）
-    let e = -1;
-    for (let j = 0; j < W - 1; j++) if (obj[j] < -EPS) { e = j; break; }
+  // 0 とみなす幅。小さすぎると、計算の誤差で 0 に近い数で割り、同じ所を回り続ける（2026-11-27 に本物の表で起きた）
+  const EPS = 1e-9;
+  let lastObj = obj[W - 1], stall = 0;
+  for (let it = 0; it < 50000; it++) {
+    // 入る変数：ふだんは目的がいちばん大きく改善するもの。目的が進まない回が続いたら、番号が小さいもの（ブランドの規則）に切り替える
+    const bland = stall > 50;
+    let e = -1, most = -EPS;
+    for (let j = 0; j < W - 1; j++) {
+      if (obj[j] < most) { e = j; if (bland) break; most = obj[j]; }
+    }
     if (e < 0) break;
-    // 出る変数：比の最小。同じなら基底の番号が小さいもの
+    // 出る変数：比の最小。比が同じなら、ふだんは割る数の大きいもの（誤差が小さい）、ブランドの規則のときは基底の番号が小さいもの
     let l = -1, best = Infinity;
     for (let i = 0; i < m; i++) {
       const a = T[i][e];
-      if (a > EPS) {
-        const ratio = T[i][W - 1] / a;
-        if (ratio < best - EPS || (Math.abs(ratio - best) <= EPS && basis[i] < basis[l])) { best = ratio; l = i; }
-      }
+      if (a <= EPS) continue;
+      const ratio = T[i][W - 1] / a;
+      if (l < 0 || ratio < best - 1e-12) { best = ratio; l = i; continue; }
+      if (Math.abs(ratio - best) <= 1e-12 && (bland ? basis[i] < basis[l] : a > T[l][e])) { best = ratio; l = i; }
     }
     if (l < 0) throw new Error('解が有界でない（起こらないはず）');
     const piv = T[l][e];
     for (let j = 0; j < W; j++) T[l][j] /= piv;
-    for (let i = 0; i < m; i++) if (i !== l) { const f = T[i][e]; if (f !== 0) for (let j = 0; j < W; j++) T[i][j] -= f * T[l][j]; }
+    for (let i = 0; i < m; i++) if (i !== l) {
+      const f = T[i][e]; if (f === 0) continue;
+      for (let j = 0; j < W; j++) T[i][j] -= f * T[l][j];
+      if (T[i][W - 1] < 0) T[i][W - 1] = 0;   // 誤差でわずかに負になった右辺を 0 に戻す
+    }
     { const f = obj[e]; for (let j = 0; j < W; j++) obj[j] -= f * T[l][j]; }
     basis[l] = e;
+    if (obj[W - 1] > lastObj + 1e-12) { lastObj = obj[W - 1]; stall = 0; } else stall++;
   }
   const y = new Array(n).fill(0);
-  for (let i = 0; i < m; i++) if (basis[i] < n) y[basis[i]] = T[i][W - 1];
+  for (let i = 0; i < m; i++) if (basis[i] < n) y[basis[i]] = Math.max(0, T[i][W - 1]);
   const x = Array.from({ length: m }, (_, i) => Math.max(0, obj[n + i]));
   const sy = y.reduce((a, b) => a + b, 0), sx = x.reduce((a, b) => a + b, 0);
-  return { value: 1 / sy - shift, row: x.map(v => v / sx), col: y.map(v => v / sy) };
+  const row = x.map(v => v / sx), col = y.map(v => v / sy);
+  // 答えの確かめ：こちらの確率で必ず取れる値（下）と、相手の確率に対してこちらが取れる最大（上）は、解なら一致する
+  let lower = Infinity, upper = -Infinity;
+  for (let j = 0; j < n; j++) { let v = 0; for (let i = 0; i < m; i++) v += row[i] * A[i][j]; lower = Math.min(lower, v); }
+  for (let i = 0; i < m; i++) { let v = 0; for (let j = 0; j < n; j++) v += col[j] * A[i][j]; upper = Math.max(upper, v); }
+  if (!(upper - lower < 1e-6)) throw new Error(`釣り合いを解けませんでした（下 ${lower}、上 ${upper}）`);
+  return { value: (lower + upper) / 2, row, col };
 }
 
 /** こちらの確率 row に対する相手の一番よい列と、そのときの勝率（相手は小さくしたい）。 */

@@ -53,7 +53,7 @@ test('ランダムな表（60×60 ほか）：釣り合いの条件を満たし�
   }
 });
 
-import { emptyStats, nextWork, solveTable, SIZE } from '../src/select/table.ts';
+import { emptyStats, estimate, nextWork, solveTable, SIZE } from '../src/select/table.ts';
 import { fitPairModel, predictCell } from '../src/select/model.ts';
 import { pickOf, indexOf, TRIOS } from '../src/select/cell.ts';
 import { spotSolve } from '../src/select/spot.ts';
@@ -113,4 +113,23 @@ test('パーティの目印：名前や印を変えても同じ、型を変え�
   const k = partyKey(mons);
   assert.equal(partyKey([{ ...mons[0], gender: 'F' }]), k);
   assert.notEqual(partyKey([{ ...mons[0], item: 'Life Orb' }]), k);
+});
+
+test('相性の見積もり＋少しの試合で作った表でも、釣り合いを正しく解く（2026-11-27 に本物の見積もりで、回り続けて誤った値 -91% を出した例）', async () => {
+  const { readFileSync } = await import('node:fs');
+  // その日の相性の見積もり（チーム2）と、表のない8位の構築の6体
+  const model = JSON.parse(readFileSync('test/fixtures/model-team2-20261127.json', 'utf8'));
+  const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8'));
+  const species = teams.find((t: any) => t.rank === 8).mons.map((m: any) => m.species);
+  const prior = (k: number) => predictCell(model, species, k);
+  let st = 7; const rnd = () => { st = (st * 16807) % 2147483647; return st / 2147483647; };
+  for (let trial = 0; trial < 100; trial++) {
+    const s = emptyStats();
+    const g = 1 + Math.floor(rnd() * 40);
+    for (let i = 0; i < g; i++) { const k = Math.floor(rnd() * SIZE * SIZE); s.n[k]++; s.w[k] += rnd() < 0.5 ? 1 : 0; }
+    const A = estimate(s, prior);
+    const sol = solveMatrix(A);
+    checkEquilibrium(A, sol);
+    assert.ok(sol.value > 0 && sol.value < 1, `${trial}：値 ${sol.value}`);
+  }
 });

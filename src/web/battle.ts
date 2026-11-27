@@ -77,7 +77,7 @@ function renderSetup() {
       `<tr><td><input type="checkbox" class="s-pick" data-i="${i}"></td><td><input type="radio" name="s-lead" value="${i}"></td><td>${esc(jn('species', m.species))}</td></tr>`).join('')}</table>` : '';
   };
   const oppIds = () => [...document.querySelectorAll<HTMLInputElement>('.s-opp')].map(x => resolve('species', x.value));
-  const trySelect = () => { const p = parties[Number((document.getElementById('s-party') as HTMLSelectElement).value)]; const ids = oppIds(); if (p && ids.every(Boolean)) computeSelection(p, ids); };
+  const trySelect = () => { const p = parties[Number((document.getElementById('s-party') as HTMLSelectElement).value)]; const ids = oppIds(); if (p && ids.every(Boolean)) computeSelection(p, ids).catch(e => { const el = document.getElementById('s-select'); if (el) el.innerHTML = `<p class="warn">選出を計算できませんでした：${esc(String(e?.message ?? e))}。3体と先発は自分で選んでください。</p>`; }); };
   (document.getElementById('s-party') as HTMLSelectElement).onchange = () => { renderOurs(); lastIds = ''; renderLead(); };
   renderOurs();
   (document.getElementById('s-time') as HTMLInputElement).onchange = e => store(KEY_SELECT_TIME, Math.max(5, Math.min(85, Number((e.target as HTMLInputElement).value))) * 1000);

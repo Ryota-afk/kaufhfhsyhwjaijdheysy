@@ -47,6 +47,7 @@ const readResult = async () => page.evaluate(() => {
 });
 let ok = true;
 const check = (cond: boolean, msg: string) => { console.log(`${cond ? '合格' : '不合格'}：${msg}`); if (!cond) ok = false; };
+const valueOk = (text: string) => { const m = /釣り合いの勝率 (-?\d+)%/.exec(text); return !!m && Number(m[1]) >= 0 && Number(m[1]) <= 100; };
 
 // 1. 表のある構築（1位）。並びを入れ替えて入れても同じ構築として見つける
 const t1 = teams.find((t: any) => t.rank === 1);
@@ -57,6 +58,7 @@ await page.waitForFunction(() => /くじの結果/.test(document.getElementById(
 let r = await readResult();
 console.log(`1位の構築：${((Date.now() - t0) / 1000).toFixed(1)}秒\n${r.text}`);
 check(/保存した表/.test(r.text) && r.rows >= 1, '保存した表から、選出の確率の表が出た');
+check(valueOk(r.text), '釣り合いの勝率が0〜100%');
 check(r.picks.length === 3 && r.picks.includes(r.lead), `くじの結果が準備欄に入った（3体 ${r.picks}、先発 ${r.lead}）`);
 check(Date.now() - t0 < 10000, '表のある構築は10秒以内に出た');
 
@@ -71,6 +73,7 @@ console.log(`表のない構築：${sec.toFixed(1)}秒\n${r.text}`);
 check(/近い構築からの見積もり/.test(r.text) && /その場の試合/.test(r.text), '近い構築からの見積もりと、その場の試合で表が出た');
 check(sec < SECS + 15, `決めた時間（${SECS}秒）＋1試合分の中で出た（${sec.toFixed(1)}秒）`);
 check(r.picks.length === 3 && r.picks.includes(r.lead), 'くじの結果が準備欄に入った');
+check(valueOk(r.text), '釣り合いの勝率が0〜100%');
 
 await page.screenshot({ path: '.build/select.png', fullPage: true });
 check(errors.length === 0, `ページのエラー ${errors.length}件 ${JSON.stringify(errors.slice(0, 5))}`);
