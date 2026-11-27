@@ -18,3 +18,18 @@ export function loadShowdown(): any {
 export function showdownCommit(): string {
   return readFileSync(resolve(import.meta.dirname, 'COMMIT'), 'utf8').trim();
 }
+
+/**
+ * 別の写しの Showdown を読み込む（クラスや図鑑のデータが loadShowdown() と別のもの）。
+ * 速さの層（記録を作らない）を当てる写しと、記録を作る写しを、同じ処理の中で使い分けるため。
+ */
+export function loadShowdownCopy(): any {
+  const require = createRequire(import.meta.url);
+  const saved: Record<string, any> = {};
+  for (const k of Object.keys(require.cache)) if (k.startsWith(DIST)) { saved[k] = require.cache[k]; delete require.cache[k]; }
+  const copy = loadShowdown();
+  // 新しい写しの登録を消して、もとの写しを戻す（以後の loadShowdown() はもとの写しを返す）
+  for (const k of Object.keys(require.cache)) if (k.startsWith(DIST)) delete require.cache[k];
+  Object.assign(require.cache, saved);
+  return copy;
+}

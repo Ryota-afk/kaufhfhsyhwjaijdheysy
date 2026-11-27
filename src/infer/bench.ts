@@ -48,7 +48,10 @@ export class BenchModel {
   private teamDist = new Map<number, Map<string, number>>();      // 順位 → 3体の組の分布（基本）
   private rate = new Map<string, number>();                       // 種族 → 選出に入る割合
   /** learned：対戦記録から数えた選出（src/learn/merge.ts の Learned['bench']）。記録1件を上位構築1件分として足す。 */
-  constructor(private teams: any[], private selections: SelectionEntry[], learned?: { rates: Record<string, [number, number]>; teams: Record<string, { n: number; trios: Record<string, number> }> }) {
+  private teams: any[];
+  private selections: SelectionEntry[];
+  constructor(teams: any[], selections: SelectionEntry[], learned?: { rates: Record<string, [number, number]>; teams: Record<string, { n: number; trios: Record<string, number> }> }) {
+    this.teams = teams; this.selections = selections;
     const byRank = new Map(teams.map(t => [t.rank, t]));
     const sum = new Map<string, [number, number]>();
     for (const sel of selections) {

@@ -12,6 +12,7 @@ import { partyKey, plainSet } from '../select/key.ts';
 import { predictCell } from '../select/model.ts';
 import { likelySet } from '../select/likely.ts';
 import { mergePriors } from '../learn/merge.ts';
+import { DEFAULT_SETTINGS, type SearchSettings } from '../learn/decide.ts';
 
 const base = import.meta.env.BASE_URL;
 const app = document.getElementById('app')!;
@@ -40,6 +41,8 @@ interface BattleDoc { id: string; partyName: string; setup: BattleSetup; start: 
 let doc: BattleDoc | null = load<BattleDoc | null>(KEY_BATTLE, null);
 let view: any = null;
 let result: any = null;
+// 探索の設定（AIどうしの比べで採用したもの。data/learn/settings.json。読めなければ最初の設定）
+let searchSettings: SearchSettings = { ...DEFAULT_SETTINGS };
 let searching = false;
 let message = '';
 
@@ -400,10 +403,10 @@ async function runSearch(t0 = performance.now()) {
   searching = true; renderBattle();
   try {
     const budget = load<number>(KEY_TIME, 10000);
-    const { positions } = await ask({ type: 'dets', k: 8, seed: Date.now() & 0xffffffff });
+    const { positions } = await ask({ type: 'dets', k: searchSettings.dets, seed: Date.now() & 0xffffffff });
     const prepMs = performance.now() - t0;
     // 再現が長すぎて残りがないときも、手を出すために最低1秒は探索する
-    const r = await pool.run(positions as Position[], Math.max(1000, budget - prepMs - 300));
+    const r = await pool.run(positions as Position[], Math.max(1000, budget - prepMs - 300), { c: searchSettings.c, depth: searchSettings.depth });
     result = { ...r, prepMs, totalMs: performance.now() - t0, budget };
   } catch (e: any) { message = `計算のエラー：${e.message}`; }
   searching = false; renderBattle();
@@ -424,6 +427,8 @@ async function main() {
     for (const [id, name] of Object.entries(ja[kind] as Record<string, string>)) { lookup[kind].set(id, id); lookup[kind].set(kata(name), id); }
   }
   for (const [id, al] of Object.entries(ja.speciesAliases ?? {}) as [string, string[]][]) for (const a of al) lookup.species.set(kata(a), id);
+  const ls = await fetchJson(`${base}data/learn/settings.json`);
+  if (ls?.settings) searchSettings = { ...DEFAULT_SETTINGS, ...ls.settings };
   await ask({ type: 'load', priorsUrl: `${base}data/priors/sets.json`, teamsUrl: `${base}data/seed/teams_m7.json`, selectionsUrl: `${base}data/seed/selections_m7.json`, learnedUrl: `${base}data/priors/learned.json` });
   await refresh();
 }

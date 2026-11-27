@@ -1,5 +1,7 @@
-# 裏の計算。毎日決まった時刻に動く（時刻は数時間ずれることがある）。
+# 裏の計算。毎日決まった時刻に動く（時刻は数時間ずれることがある）。全部で5つ並べる。
 # 先回りの計算：「よく使う」の印をつけたパーティ × 上位構築の選出の表を、4つに分けて並べて埋める。
+# 設定の比べ：探索の設定の候補を、今の設定と AIどうしで対戦させる（1つ）。
+# まとめ：先回りの計算の後に、表の一覧・相性の見積もりと、対戦記録から数えた型の割合・選出の傾向を作る。
 # 1回の作業は GitHub の上限（6時間）より短く区切り、途中の結果を data/precomputed/ に保存して、次の回に続きから再開する。
 name: 裏の計算
 on:
@@ -55,6 +57,37 @@ jobs:
             sleep $((i * 10))
           done
           exit 1
+  compare:
+    # 探索の設定の比べ（2000試合以上で採用・不採用を決める。1回で終わらないので、毎日続きから）
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: vendor/showdown
+          key: showdown-${{ hashFiles('tools/showdown/COMMIT') }}
+      - run: npm run showdown:setup
+      - name: 設定の比べ
+        run: npx tsx tools/learn/compare.ts --minutes ${{ github.event.inputs.minutes || '320' }}
+      - name: 結果をリポジトリに保存
+        if: always()
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/learn || true
+          if git diff --cached --quiet; then echo '保存するものなし'; exit 0; fi
+          git commit -m "設定の比べ（$(date -u '+%Y-%m-%d %H:%M')）"
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0
+            sleep $((i * 10))
+          done
+          exit 1
   finish:
     # 4つの分担が終わった後に1回だけ：表の一覧と、近い構築から見積もるための相性を作って保存
     needs: precompute
@@ -70,13 +103,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: vendor/showdown
+          key: showdown-${{ hashFiles('tools/showdown/COMMIT') }}
+      - run: npm run showdown:setup
       - name: 表の一覧と相性の見積もり
         run: npx tsx tools/select/finish.ts
+      - name: 対戦記録から型の割合と選出の傾向を数える
+        run: npx tsx tools/learn/learn-logs.ts
       - name: 保存
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/precomputed || true
+          git add data/precomputed data/priors/learned.json || true
           if git diff --cached --quiet; then echo '保存するものなし'; exit 0; fi
           git commit -m "先回りの計算のまとめ（$(date -u '+%Y-%m-%d %H:%M')）"
           for i in 1 2 3 4 5; do

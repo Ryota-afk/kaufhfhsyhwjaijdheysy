@@ -47,3 +47,22 @@ test('選出の傾向：記録1件＝上位構築1件分として、種族の割
   const b2 = new BenchModel(teams, sels, { rates: {}, teams: { 1: { n: 1, trios: { '0,1,2': 1 } } } });
   assert.ok(close(b2.prior(sp, []).get('0,1,2')!, (p0 + 1) / 2));
 });
+
+import { judge, RULE } from '../src/learn/decide.ts';
+test('設定の採用の判定：2000試合以上、勝率0.52以上、かつ勝率−2×誤差>0.5 のときだけ採用', () => {
+  const pairs = (n: number, wins: number): [number, number][] => Array.from({ length: n }, (_, i) => [i < wins ? 1 : 0, i < wins ? 1 : 0]);
+  assert.equal(RULE.minGames, 2000);
+  // 1998試合では、勝率が高くても途中
+  assert.equal(judge(pairs(999, 700)).status, '途中');
+  // 2000試合、勝率0.56（組の2試合が同じ結果なので、組で見た誤差 sqrt(0.56·0.44/1000)≈0.0157 を使う）：0.56−0.031>0.5 で採用
+  const a = judge(pairs(1000, 560));
+  assert.equal(a.games, 2000); assert.ok(Math.abs(a.rate - 0.56) < 1e-12);
+  assert.ok(Math.abs(a.se - Math.sqrt(0.56 * 0.44 / 999) * Math.sqrt(999 / 1000)) < 2e-4, String(a.se));
+  assert.equal(a.status, '採用');
+  // 勝率0.52 ちょうどでも、誤差の2倍を引くと0.5以下なので不採用
+  assert.equal(judge(pairs(1000, 520)).status, '不採用');
+  // 勝率0.51は不採用
+  assert.equal(judge(pairs(1000, 510)).status, '不採用');
+  // 組の2試合が逆の結果（先手が勝つだけ）なら、勝率0.5で不採用
+  assert.equal(judge(Array.from({ length: 1000 }, () => [1, 0] as [number, number])).status, '不採用');
+});

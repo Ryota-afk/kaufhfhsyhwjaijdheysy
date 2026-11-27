@@ -33,6 +33,10 @@ for (const f of files) {
     console.log(`数えられなかった記録：${f}：${e.message}`);
   }
 }
+// 中身が前と同じなら書かない（毎日、日付だけ違うファイルを保存しないため）
+const prev = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : null;
+const body = (x: any) => JSON.stringify({ ...x, updatedAt: '' });
+if (prev && body(prev) === body(learned)) { console.log('数えた結果は前と同じなので、書き直さない'); process.exit(0); }
 learned.updatedAt = new Date().toISOString();
 writeFileSync(OUT, JSON.stringify(learned));
 console.log(`記録 ${files.length} 件のうち ${ok} 件を数えた。種族 ${Object.keys(learned.sets).length}、書き出し先 ${OUT}`);

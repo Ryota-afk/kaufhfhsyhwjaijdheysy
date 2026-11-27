@@ -13,6 +13,7 @@ import { makeRunner } from '../../src/engine/runner.ts';
 import { makeCloner } from '../../src/engine/clone.ts';
 import { makeAnalyzer, type TurnInput } from '../../src/battle/analyze.ts';
 import { shownPercent } from '../../src/infer/calc.ts';
+import { revealFoe } from '../../src/learn/viewer.ts';
 import { search, top3 } from '../../src/search/mcts.ts';
 import type { Position, Action, StatusID } from '../../src/engine/position.ts';
 
@@ -52,18 +53,8 @@ for (let g = 0; g < GAMES; g++) {
   const an = new Analyzer({ ours, ourLead: 0, oppSpecies, ourTeamJa: party.map((m: any) => m.jp) });
   // 先発の特性・持ち物（場に出たとき）
   const sinceStart = (from: number) => (b.log as string[]).slice(from);
-  const reveal = (lines: string[], oppActiveSpecies: string) => {
-    let item: string | undefined, ability: string | undefined;
-    for (const l of lines) {
-      const owner = /\[of\] (p[12])a: ([^|]*)/.exec(l)?.slice(1) ?? /^\|-[a-z]+\|(p[12])a: ([^|]*)/.exec(l)?.slice(1);
-      if (!owner || owner[0] !== 'p2' || dex.species.get(owner[1]).baseSpecies !== dex.species.get(oppActiveSpecies).baseSpecies) continue;
-      const it = /\[from\] item: ([^|]*)/.exec(l)?.[1] ?? /^\|-(?:item|enditem)\|p2a: [^|]*\|([^|]*)/.exec(l)?.[1];
-      if (it) item = it;
-      const ab = /\[from\] ability: ([^|]*)/.exec(l)?.[1] ?? /^\|-ability\|p2a: [^|]*\|([^|]*)/.exec(l)?.[1];
-      if (ab && !l.includes('[of] p1a') || ab && owner) ability = ab;
-    }
-    return { item, ability };
-  };
+  // 相手の持ち物・特性の表示の拾い方は、AIどうしの対戦と同じもの（src/learn/viewer.ts）
+  const reveal = (lines: string[], oppActiveSpecies: string) => revealFoe(dex, lines, 0, oppActiveSpecies);
   const oppLead = oppIdx[0];
   const r0 = reveal(sinceStart(0), oppSpecies[oppLead]);
   an.start({ oppLead, oppAbility: r0.ability, oppItem: r0.item });

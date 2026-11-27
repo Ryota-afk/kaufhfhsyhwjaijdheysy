@@ -100,9 +100,18 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
     }
 
     /** 対戦の始まり：先発を出した直後の盤面を作る（特性の効果も入る）。 */
+    /** 相手の体 i の種族（とそのメガシンカ）が持てる特性。 */
+    possibleAbilities(i: number): Set<string> {
+      const owner = dex.species.get(this.setup.oppSpecies[i]);
+      const out = new Set<string>([...Object.values(owner.abilities).map((a: any) => toID(a))]);
+      for (const it of dex.items.all()) if (it.megaStone) for (const [from, f] of Object.entries(it.megaStone) as [string, string][]) if (dex.species.get(from).baseSpecies === owner.baseSpecies) out.add(toID(dex.species.get(f).abilities['0']));
+      return out;
+    }
+
     start(s: StartInput) {
       this.opp[s.oppLead].seen = true;
-      if (s.oppAbility) this.sets[s.oppLead].add(clueAbility(s.oppAbility));
+      // その種族（とメガシンカ）が持てない特性は、トレース等で写したものなので、手がかりにしない（record と同じ）
+      if (s.oppAbility && this.possibleAbilities(s.oppLead).has(toID(s.oppAbility))) this.sets[s.oppLead].add(clueAbility(s.oppAbility));
       if (s.oppItem) this.sets[s.oppLead].add(clueItem(s.oppItem));
       const trio = this.oppTrio().filter(i => i !== s.oppLead);
       this.oppOrder = [s.oppLead, ...trio].slice(0, 3);
@@ -169,9 +178,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
         const it = dex.items.get(t.oppItem);
         if (it.isBerry || ['focussash', 'airballoon', 'whiteherb', 'mentalherb', 'powerherb', 'redcard', 'ejectbutton', 'ejectpack', 'weaknesspolicy', 'boosterenergy', 'roomservice', 'throatspray', 'adrenalineorb', 'blunderpolicy', 'mirrorherb', 'cellbattery', 'absorbbulb', 'snowball', 'luminousmoss'].includes(it.id)) this.itemGone[t.after.oppActive] = true;
       }
-      const abOwner = dex.species.get(this.setup.oppSpecies[t.after.oppActive]);
-      const possibleAb = new Set<string>([...Object.values(abOwner.abilities).map((a: any) => toID(a))]);
-      for (const it of dex.items.all()) if (it.megaStone) for (const [from, f] of Object.entries(it.megaStone) as [string, string][]) if (dex.species.get(from).baseSpecies === abOwner.baseSpecies) possibleAb.add(toID(dex.species.get(f).abilities['0']));
+      const possibleAb = this.possibleAbilities(t.after.oppActive);
       // その種族（とメガシンカ）が持てない特性が見えたときは、トレース等で写したものなので、手がかりにしない
       if (t.oppAbility && possibleAb.has(toID(t.oppAbility))) {
         // メガシンカした後の特性も見えるので、メガストーンを持つ候補はメガシンカ後の特性とも比べる
