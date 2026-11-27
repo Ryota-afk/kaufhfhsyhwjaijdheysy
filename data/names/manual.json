@@ -1,0 +1,190 @@
+{
+ "_説明": "PokeAPI に日本語名がない名前を、出典つきで手で足したもの。推測では足さない。",
+ "species": {
+  "floetteeternal": {
+   "ja": "フラエッテ",
+   "source": "チャンピオンズでは普通のフラエッテが使えないため、上位構築のデータ（ゲームウィズ由来）と同じ表記にした",
+   "aliases": [
+    "フラエッテ（えいえんのはな）"
+   ]
+  },
+  "indeedeef": {
+   "ja": "イエッサン（メス）",
+   "source": "メスの姿。種族名＋性別"
+  },
+  "basculegionf": {
+   "ja": "イダイトウ（メス）",
+   "source": "メスの姿。種族名＋性別"
+  },
+  "meowsticf": {
+   "ja": "ニャオニクス（メス）",
+   "source": "メスの姿。種族名＋性別"
+  }
+ },
+ "items": {
+  "absolitez": {
+   "ja": "アブソルナイトZ",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "barbaracite": {
+   "ja": "ガメノデスナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "baxcalibrite": {
+   "ja": "セグレイブナイト",
+   "source": "https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "chandelurite": {
+   "ja": "シャンデラナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "chesnaughtite": {
+   "ja": "ブリガロナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "chimechite": {
+   "ja": "チリーンナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "clefablite": {
+   "ja": "ピクシナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "crabominite": {
+   "ja": "ケケンカニナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "delphoxite": {
+   "ja": "マフォクシナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "dragalgite": {
+   "ja": "ドラミドナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "dragoninite": {
+   "ja": "カイリュナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "emboarite": {
+   "ja": "エンブオナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "excadrite": {
+   "ja": "ドリュウズナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "feraligite": {
+   "ja": "オーダイルナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "floettite": {
+   "ja": "フラエッテナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "froslassite": {
+   "ja": "ユキメノコナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "garchompitez": {
+   "ja": "ガブリアスナイトZ",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "glimmoranite": {
+   "ja": "キラフロルナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "golisopite": {
+   "ja": "グソクムシャナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "golurkite": {
+   "ja": "ゴルーグナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "greninjite": {
+   "ja": "ゲッコウガナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "hawluchanite": {
+   "ja": "ルチャブルナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "lucarionitez": {
+   "ja": "ルカリオナイトZ",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763 / 利用者のゲーム画面（2026-11-27）"
+  },
+  "meganiumite": {
+   "ja": "メガニウムナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "meowsticite": {
+   "ja": "ニャオニクスナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "raichunitex": {
+   "ja": "ライチュウナイトX",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "raichunitey": {
+   "ja": "ライチュウナイトY",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "scolipite": {
+   "ja": "ペンドラナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "scovillainite": {
+   "ja": "スコヴィラナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288 / https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "scraftinite": {
+   "ja": "ズルズキナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "staraptite": {
+   "ja": "ムクホークナイト",
+   "source": "https://gamepedia.jp/pokemon-legends-z-a/archives/28763"
+  },
+  "starminite": {
+   "ja": "スターミーナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "victreebelite": {
+   "ja": "ウツボットナイト",
+   "source": "https://game8.jp/pokemon-legends-z-a/765678 / https://game8.jp/pokemon-legends-z-a/731288"
+  },
+  "skarmorite": {
+   "ja": "エアームドナイト",
+   "source": "https://wiki.pokemonwiki.com/wiki/エアームドナイト（記事名を検索結果で確認）"
+  },
+  "falinksite": {
+   "ja": "タイレーツナイト",
+   "source": "https://wiki.pokemonwiki.com/wiki/タイレーツナイト（記事名を検索結果で確認）"
+  },
+  "drampanite": {
+   "ja": "ジジーロナイト",
+   "source": "https://wiki.pokemonwiki.com/wiki/カテゴリ:メガストーン（本文は取得を断られたため、2026-11-27 の検索結果の要約で確認）"
+  },
+  "eelektrossite": {
+   "ja": "シビルドナイト",
+   "source": "https://wiki.pokemonwiki.com/wiki/カテゴリ:メガストーン（本文は取得を断られたため、2026-11-27 の検索結果の要約で確認）"
+  },
+  "malamarite": {
+   "ja": "カラマネナイト",
+   "source": "https://wiki.pokemonwiki.com/wiki/カテゴリ:メガストーン（本文は取得を断られたため、2026-11-27 の検索結果の要約で確認）"
+  },
+  "pyroarite": {
+   "ja": "カエンジシナイト",
+   "source": "https://wiki.pokemonwiki.com/wiki/カテゴリ:メガストーン（本文は取得を断られたため、2026-11-27 の検索結果の要約で確認）"
+  },
+  "leek": {
+   "ja": "ながねぎ",
+   "source": "https://gamewith.jp/pokemon-champions/575708 / https://appmedia.jp/?p=5358622"
+  }
+ },
+ "moves": {},
+ "abilities": {},
+ "natures": {},
+ "types": {}
+}
