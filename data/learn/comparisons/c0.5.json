@@ -1,0 +1,51 @@
+{
+ "id": "c0.5",
+ "note": "広げ方の定数を0.7から0.5へ",
+ "base": {
+  "c": 0.7,
+  "depth": 4,
+  "dets": 8
+ },
+ "cand": {
+  "c": 0.5,
+  "depth": 4,
+  "dets": 8
+ },
+ "iters": 8000,
+ "rule": {
+  "minGames": 2000,
+  "minRate": 0.52
+ },
+ "pairs": [
+  [
+   0,
+   1
+  ],
+  [
+   1,
+   1
+  ],
+  [
+   0,
+   0
+  ]
+ ],
+ "halves": {
+  "3": {
+   "A": 0
+  }
+ },
+ "errors": 3,
+ "errorSamples": [
+  "側1：いちばんの手は選べず、2番目の手を打った（探索の上位 move 2、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":3}{\"kind\":\"switch\",\"to\":1}、本当の場 Hippowdon、記録係の場 hippowdon）",
+  "側1：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"switch\",\"to\":1}、本当の場 Hippowdon、記録係の場 hippowdon）",
+  "側1：探索のどの手も選べない"
+ ],
+ "gameSeconds": 4041.155,
+ "games": 6,
+ "startedAt": "2026-11-27T15:57:19.576Z",
+ "rate": 0.5,
+ "se": 0.28867513459481287,
+ "status": "途中",
+ "updatedAt": "2026-11-27T16:25:45.105Z"
+}
