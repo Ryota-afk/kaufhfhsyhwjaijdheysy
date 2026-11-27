@@ -195,7 +195,8 @@ export function makeAnalyzer(PS: any, FORMAT: string, priors: { species: Record<
         if (score === 0) break;
       }
       if (!best) { this.notes.push('このターンを Showdown で再現できませんでした。盤面は入力の値だけで作ります。'); best = { score: 99, pos: replayPos, log: [] }; }
-      if (best.score > 0) this.notes.push(`入力と完全に合う再現が見つかりませんでした（ずれの点数 ${best.score.toFixed(2)}）。能力ランクや場の状態を確かめてください。`);
+      // HP の少しの違いは、相手の型を推定で置いているので起きる。場の体・状態異常・順番・急所が合わないときだけ知らせる
+      if (best.score >= 1) this.notes.push(`入力と合う再現が見つかりませんでした（ずれの点数 ${best.score.toFixed(2)}）。能力ランクや場の状態を確かめてください。`);
       // 見えた値で上書き
       const pos = best.pos;
       const us = pos.sides[0];

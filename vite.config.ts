@@ -7,7 +7,7 @@ export default defineConfig({
   base: '/kaufhfhsyhwjaijdheysy/',
   build: {
     outDir: 'dist', emptyOutDir: true,
-    rollupOptions: { input: { main: resolve(__dirname, 'index.html'), bench: resolve(__dirname, 'bench.html'), party: resolve(__dirname, 'party.html') } },
+    rollupOptions: { input: { main: resolve(__dirname, 'index.html'), bench: resolve(__dirname, 'bench.html'), party: resolve(__dirname, 'party.html'), battle: resolve(__dirname, 'battle.html') } },
   },
   worker: { format: 'es' },
   resolve: { alias: { '@showdown-full': resolve(__dirname, '.build/showdown-full.mjs'), '@showdown': resolve(__dirname, '.build/showdown-browser.mjs') } },

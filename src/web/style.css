@@ -18,3 +18,7 @@ nav a { margin-right: 12px; }
 .warn { color: #c0392b; }
 @media (prefers-color-scheme: dark) { .warn { color: #ff8a80; } }
 button.primary { font-weight: bold; padding: 4px 16px; }
+label.btn { display: inline-block; border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; margin: 2px 0; cursor: pointer; }
+label.btn:has(input:checked) { background: #dbeafe; border-color: #3b82f6; }
+@media (prefers-color-scheme: dark) { label.btn:has(input:checked) { background: #1e3a5f; } }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }

@@ -3,7 +3,7 @@
 name: 照合
 on:
   push:
-    paths: ['src/engine/**', 'tools/**', 'package.json', '.github/workflows/compare.yml']
+    paths: ['src/**', 'tools/**', 'data/priors/**', 'package.json', '.github/workflows/compare.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,6 +31,8 @@ jobs:
         run: npx tsx tools/infer/damage-check.ts 150 3
       - name: 推定の行動の順番と実際の対戦の照合
         run: npx tsx tools/infer/order-check.ts 200 4
+      - name: 対戦の記録係の通し（Showdown で打った対戦を入れる）
+        run: npx tsx tools/battle/sim-check.ts 8 ${{ github.run_number }}
       - if: always()
         uses: actions/upload-artifact@v4
         with:
