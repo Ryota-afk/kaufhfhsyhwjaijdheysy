@@ -176,7 +176,6 @@ async function computeSelection(p: any, ids: string[]) {
   if (gen !== selectGen) return;
   // こちらが選べる選び方：メガストーンを持つポケモンがちょうど1匹の組だけ（いなければ全部）
   const allowed = allowedRows(i => !!dex.items[toID(p.mons[i]?.item ?? '')]?.megaStone);
-  if (allowed) basis.push('こちらは、メガストーンを持つポケモンがちょうど1匹の組だけから選ぶ');
   let sol, games = 0, ms = 0;
   if (basis.length) {
     sol = solveTable(stats, prior, 0.01, allowed);
@@ -210,6 +209,7 @@ async function computeSelection(p: any, ids: string[]) {
     }
   }
   if (gen !== selectGen || !document.getElementById('s-select')) return;
+  if (allowed) basis.push('こちらは、メガストーンを持つポケモンがちょうど1匹の組だけから選ぶ');
   // こちらの確率の高い順。くじは確率どおりに引く
   const rows = sol.row.map((x: number, i: number) => ({ i, x })).filter((r: any) => r.x >= 0.005).sort((a: any, b: any) => b.x - a.x);
   const name = (k: number) => { const pk = pickOf(k); return pk.order.map((i, n) => esc(jn('species', p.mons[i].species)) + (n === 0 ? '（先発）' : '')).join('・'); };

@@ -47,6 +47,9 @@ const readResult = async () => page.evaluate(() => {
 });
 let ok = true;
 const check = (cond: boolean, msg: string) => { console.log(`${cond ? '合格' : '不合格'}：${msg}`); if (!cond) ok = false; };
+// メガストーン（名前が ite または ite Z で終わる持ち物。メガストーンでない例外：Eviolite 等は除く）を持つポケモンの番号
+const megaIdx = party.mons.map((m: any, i: number) => /ite( [XYZ])?$/.test(m.item ?? '') && !/^(Eviolite|Rocky Helmet)$/.test(m.item) ? i : -1).filter((i: number) => i >= 0);
+const megaOk = (picks: number[]) => !megaIdx.length || picks.filter(i => megaIdx.includes(i)).length === 1;
 const valueOk = (text: string) => { const m = /釣り合いの勝率 (-?\d+)%/.exec(text); return !!m && Number(m[1]) >= 0 && Number(m[1]) <= 100; };
 
 // 1. 表のある構築（1位）。並びを入れ替えて入れても同じ構築として見つける
@@ -60,6 +63,7 @@ console.log(`1位の構築：${((Date.now() - t0) / 1000).toFixed(1)}秒\n${r.te
 check(/保存した表/.test(r.text) && r.rows >= 1, '保存した表から、選出の確率の表が出た');
 check(valueOk(r.text), '釣り合いの勝率が0〜100%');
 check(r.picks.length === 3 && r.picks.includes(r.lead), `くじの結果が準備欄に入った（3体 ${r.picks}、先発 ${r.lead}）`);
+check(megaOk(r.picks), `くじの3体に、メガストーンを持つポケモン（${megaIdx}）がちょうど1匹`);
 check(Date.now() - t0 < 10000, '表のある構築は10秒以内に出た');
 
 // 2. 表のない構築（5位）
@@ -78,6 +82,7 @@ if (SECS > 0) {
   check(sec < 5, `すぐに出た（${sec.toFixed(1)}秒）`);
 }
 check(r.picks.length === 3 && r.picks.includes(r.lead), 'くじの結果が準備欄に入った');
+check(megaOk(r.picks), 'くじの3体に、メガストーンを持つポケモンがちょうど1匹');
 check(valueOk(r.text), '釣り合いの勝率が0〜100%');
 
 await page.screenshot({ path: '.build/select.png', fullPage: true });
