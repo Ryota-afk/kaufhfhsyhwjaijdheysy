@@ -1,0 +1,134 @@
+{
+ "id": "p202611281126068099",
+ "name": "受けパ",
+ "updatedAt": "2026-11-28T11:35:19.794Z",
+ "precompute": false,
+ "mons": [
+  {
+   "species": "Scovillain",
+   "item": "Scovillainite",
+   "ability": "Insomnia",
+   "nature": "Modest",
+   "evs": {
+    "hp": 32,
+    "atk": 0,
+    "def": 7,
+    "spa": 22,
+    "spd": 4,
+    "spe": 1
+   },
+   "moves": [
+    "Flamethrower",
+    "Giga Drain",
+    "Leaf Storm",
+    "Protect"
+   ],
+   "gender": "F"
+  },
+  {
+   "species": "Toxapex",
+   "item": "シュカ",
+   "ability": "Regenerator",
+   "nature": "Bold",
+   "evs": {
+    "hp": 32,
+    "atk": 0,
+    "def": 32,
+    "spa": 0,
+    "spd": 2,
+    "spe": 0
+   },
+   "moves": [
+    "Infestation",
+    "Toxic",
+    "Baneful Bunker",
+    "Recover"
+   ],
+   "gender": "F"
+  },
+  {
+   "species": "Clefable",
+   "item": "Leftovers",
+   "ability": "Unaware",
+   "nature": "Bold",
+   "evs": {
+    "hp": 32,
+    "atk": 0,
+    "def": 32,
+    "spa": 0,
+    "spd": 0,
+    "spe": 2
+   },
+   "moves": [
+    "Moonblast",
+    "Calm Mind",
+    "Protect",
+    "Wish"
+   ],
+   "gender": "F"
+  },
+  {
+   "species": "Garchomp",
+   "item": "Sitrus Berry",
+   "ability": "Sand Veil",
+   "nature": "Adamant",
+   "evs": {
+    "hp": 24,
+    "atk": 23,
+    "def": 3,
+    "spa": 0,
+    "spd": 0,
+    "spe": 16
+   },
+   "moves": [
+    "Earthquake",
+    "Dragon Tail",
+    "Spikes",
+    "Stealth Rock"
+   ],
+   "gender": "M"
+  },
+  {
+   "species": "Corviknight",
+   "item": "Rocky Helmet",
+   "ability": "Pressure",
+   "nature": "Bold",
+   "evs": {
+    "hp": 32,
+    "atk": 0,
+    "def": 28,
+    "spa": 0,
+    "spd": 0,
+    "spe": 6
+   },
+   "moves": [
+    "Body Press",
+    "U-turn",
+    "Iron Defense",
+    "Roost"
+   ],
+   "gender": "F"
+  },
+  {
+   "species": "Baxcalibur",
+   "item": "Baxcalibrite",
+   "ability": "Thermal Exchange",
+   "nature": "Adamant",
+   "evs": {
+    "hp": 32,
+    "atk": 32,
+    "def": 0,
+    "spa": 0,
+    "spd": 0,
+    "spe": 2
+   },
+   "moves": [
+    "Glaive Rush",
+    "Ice Shard",
+    "Thunder Fang",
+    "Swords Dance"
+   ],
+   "gender": "M"
+  }
+ ]
+}
