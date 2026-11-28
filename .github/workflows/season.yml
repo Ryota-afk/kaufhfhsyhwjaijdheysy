@@ -1,0 +1,52 @@
+# シーズンの上位構築の取り込み（指示文 4-6.、docs/season-import.md）。週に1回、次のシーズンの公開データがあるかを1回だけ見る。
+# あれば：公開データ（バトルデータベース チャンピオンズ）を1回取得し、Smogon の統計（いちばん新しい月）で補って
+# data/seed/teams_m{n}.json を作り、data/season/current.json を新しいシーズンにし、型の候補を作り直す。
+# 選出の表は、次の裏の計算から新しいシーズンの構築で埋まる（前のシーズンの表は残る）。
+name: シーズンの取り込み
+on:
+  schedule:
+    - cron: '23 18 * * 1'   # 毎週月曜 18:23（世界標準時）＝ 火曜 3:23（日本時間）
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: season
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: vendor/showdown
+          key: showdown-${{ hashFiles('tools/showdown/COMMIT') }}
+      - run: npm run showdown:setup
+      - name: 次のシーズンの公開データがあれば取り込む
+        id: imp
+        run: |
+          before=$(cat data/season/current.json | md5sum)
+          npx tsx tools/season/import.ts --auto
+          after=$(cat data/season/current.json | md5sum)
+          if [ "$before" != "$after" ]; then echo "changed=1" >> $GITHUB_OUTPUT; fi
+      - name: 型の候補を作り直す
+        if: steps.imp.outputs.changed == '1'
+        run: npx tsx tools/gen-priors.ts
+      - name: 保存
+        if: steps.imp.outputs.changed == '1'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/seed data/season data/priors/sets.json
+          git commit -m "シーズンの取り込み（$(date -u '+%Y-%m-%d')）"
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0
+            sleep $((i * 10))
+          done
+          exit 1

@@ -15,7 +15,7 @@ if (existsSync(root)) {
     const train: TrainTable[] = [];
     // 今のパーティの中身で作った表だけで相性を見積もる（パーティを直す前の表は使わない）
     const pf = `data/parties/${party}.json`;
-    const saved = readdirSync(dir).filter(f => /^\d+\.json$/.test(f)).map(f => ({ f, s: JSON.parse(readFileSync(`${dir}/${f}`, 'utf8')) }));
+    const saved = readdirSync(dir).filter(f => /^(m\d+-)?\d+\.json$/.test(f)).map(f => ({ f, s: JSON.parse(readFileSync(`${dir}/${f}`, 'utf8')) }));
     // パーティのファイルがないとき（確かめ用）は、いちばん新しい表のパーティの目印を使う
     const latest = [...saved].sort((a, b) => String(b.s.updatedAt).localeCompare(String(a.s.updatedAt)))[0];
     const key = existsSync(pf) ? partyKey(JSON.parse(readFileSync(pf, 'utf8')).mons) : latest?.s.partyKey ?? null;

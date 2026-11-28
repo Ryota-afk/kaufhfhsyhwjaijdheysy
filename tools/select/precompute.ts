@@ -29,7 +29,9 @@ const partyFiles = arg('party', '') ? [arg('party', '')] : (existsSync('data/par
 const parties = partyFiles.map(f => JSON.parse(readFileSync(f, 'utf8'))).filter((p: any) => arg('party', '') || p.precompute);
 const valid = (mons: any[]) => !validator.validateTeam(mons.map((m: any) => ({ ...m, name: '', level: 50, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 } })));
 const rankFilter = arg('ranks', '') ? new Set(arg('ranks', '').split(',').map(Number)) : null;
-const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8'))
+// 今のシーズンの上位構築（data/season/current.json）
+const seasonCfg = JSON.parse(readFileSync('data/season/current.json', 'utf8'));
+const teams = JSON.parse(readFileSync(seasonCfg.teams, 'utf8'))
   .filter((t: any) => (!rankFilter || rankFilter.has(t.rank)) && valid(t.mons))
   .sort((a: any, b: any) => a.rank - b.rank);
 // 仕事の並び：順位の高い構築から、パーティを順に。分担は番号の余りで分ける
@@ -41,7 +43,8 @@ console.log(`対象：パーティ ${parties.length}、構築 ${teams.length}、
 interface Saved { party: string; partyKey: string; team: { rank: number; season: string; species: string[] }; ai: typeof AI; n: number[]; w: number[]; level: number; done: boolean; games: number; seconds: number; solution?: any; updatedAt: string }
 // パーティの中身（6体の型）が同じかどうかの目印。名前や印を変えただけでは作り直さない
 const partyKey = (party: any) => keyOf(party.mons);
-const fileOf = (party: any, team: any) => `${OUT}/${party.id}/${team.rank}.json`;
+// 表のファイル：M-7 は <順位>.json（最初に作った形のまま）、ほかのシーズンは m<番号>-<順位>.json。前のシーズンの表は残す
+const fileOf = (party: any, team: any) => `${OUT}/${party.id}/${team.season === 'M-7' ? '' : `${String(team.season).toLowerCase().replace('-', '')}-`}${team.rank}.json`;
 function load(party: any, team: any): Saved {
   const f = fileOf(party, team);
   const fresh: Saved = { party: party.id, partyKey: partyKey(party), team: { rank: team.rank, season: team.season, species: team.mons.map((m: any) => m.species) }, ai: AI, ...emptyStats(), level: 0, done: false, games: 0, seconds: 0, updatedAt: '' };
@@ -104,7 +107,7 @@ for (const { party, team } of mine) {
             if (Date.now() - lastSave > SAVE_EVERY_MS) { addTime(); save(s, party, team); lastSave = Date.now(); console.log(`途中の保存：${label} 段階 ${s.level}、試合 ${s.games}`); }
             if ((next >= jobs.length || Date.now() >= deadline) && running === 0) resolve(); else pump();
           });
-          w.postMessage({ id: next, ours, theirs, r: Math.floor(k / SIZE), c: k % SIZE, iters: AI.iters, seed: (team.rank * 7919 + k * 104729 + g * 15485863 + 1) >>> 0 });
+          w.postMessage({ id: next, ours, theirs, r: Math.floor(k / SIZE), c: k % SIZE, iters: AI.iters, seed: (team.rank * 7919 + k * 104729 + g * 15485863 + (seasonCfg.seasonNumber === 7 ? 0 : seasonCfg.seasonNumber * 2654435761) + 1) >>> 0 });
         }
         if (running === 0) resolve();
       };

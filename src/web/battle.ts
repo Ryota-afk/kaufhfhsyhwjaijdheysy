@@ -151,7 +151,10 @@ async function computeSelection(p: any, ids: string[]) {
   const ours = p.mons.map(plainSet);
   const index = await fetchJson(`${base}data/precomputed/index.json`);
   const sorted = [...ids].sort().join(',');
-  const entry = (index?.tables ?? []).find((t: any) => t.party === p.id && t.partyKey === key && t.species.map(toID).sort().join(',') === sorted && t.games > 0);
+  // 同じ6体の表が複数のシーズンにあれば、新しいシーズンのものを使う
+  const seasonNo = (x: string) => Number(String(x ?? '').replace(/\D/g, '')) || 0;
+  const entry = (index?.tables ?? []).filter((t: any) => t.party === p.id && t.partyKey === key && t.species.map(toID).sort().join(',') === sorted && t.games > 0)
+    .sort((a: any, b: any) => seasonNo(b.season) - seasonNo(a.season))[0];
   const basis: string[] = [];
   let stats: TableStats = emptyStats(), species: string[] = ids, theirs: any[] = [];
   if (entry) {

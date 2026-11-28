@@ -1,0 +1,9 @@
+{
+ "season": "M-7",
+ "seasonNumber": 7,
+ "teams": "data/seed/teams_m7.json",
+ "previous": [],
+ "selections": "data/seed/selections_m7.json",
+ "smogon": "data/season/raw/smogon_2026-10_gen9championsbssregmc-1760.json",
+ "note": "今のシーズンの上位構築。M-7 は記事から取った実際の型（指示文 5.）。新しいシーズンは tools/season/import.ts が作る"
+}

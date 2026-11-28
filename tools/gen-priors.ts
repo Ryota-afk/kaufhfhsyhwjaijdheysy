@@ -15,7 +15,15 @@ import { loadShowdown, FORMAT, ROOT, showdownCommit } from './showdown/load.ts';
 const PS = loadShowdown();
 const dex = PS.Dex.forFormat(FORMAT);
 const toID = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const teams = JSON.parse(readFileSync(resolve(ROOT, 'data/seed/teams_m7.json'), 'utf8'));
+import { loadSmogon, topKeys, parseSpread } from './season/smogon.ts';
+// 今のシーズン（data/season/current.json）。今のシーズンの構築は重み1、前のシーズンの実際の型（補った型は除く）は重み0.5（利用者の決め事、2026-11-28）
+const season = JSON.parse(readFileSync(resolve(ROOT, 'data/season/current.json'), 'utf8'));
+const PREV_WEIGHT = 0.5;
+const teams: any[] = [
+  ...JSON.parse(readFileSync(resolve(ROOT, season.teams), 'utf8')).map((t: any) => ({ ...t, _w: 1 })),
+  ...season.previous.flatMap((f: string) => JSON.parse(readFileSync(resolve(ROOT, f), 'utf8')).map((t: any) => ({ ...t, _w: PREV_WEIGHT, mons: t.mons.filter((m: any) => !m.fill) }))),
+];
+const smogon = season.smogon ? loadSmogon(resolve(ROOT, season.smogon)) : new Map();
 const randomSets = JSON.parse(readFileSync(resolve(ROOT, 'vendor/showdown/data/random-battles/champions/sets.json'), 'utf8'));
 type Stats = Record<'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe', number>;
 
@@ -36,14 +44,15 @@ let megaCapable = 0, megaHeld = 0;
 const seedBySpecies = new Map<string, Map<string, { w: number; set: any }>>();
 const seedCount = new Map<string, number>();
 for (const t of teams) for (const m of t.mons) {
+  const W = t._w;
   const sp = dex.species.get(m.species);
   const item = dex.items.get(m.item);
   const shape = shapeOf(m.evs);
   const bucket = (byShape[shape] ??= { items: new Map(), spreads: new Map() });
-  if (!item.megaStone && !item.zMove) bucket.items.set(item.name, (bucket.items.get(item.name) ?? 0) + 1);
+  if (!item.megaStone && !item.zMove) bucket.items.set(item.name, (bucket.items.get(item.name) ?? 0) + W);
   const spreadKey = JSON.stringify({ nature: m.nature, evs: m.evs });
-  bucket.spreads.set(spreadKey, (bucket.spreads.get(spreadKey) ?? 0) + 1);
-  if (megaOf(sp).length) { megaCapable++; if (item.megaStone) megaHeld++; }
+  bucket.spreads.set(spreadKey, (bucket.spreads.get(spreadKey) ?? 0) + W);
+  if (megaOf(sp).length) { megaCapable += W; if (item.megaStone) megaHeld += W; }
   // seed の型
   const abilities = m.ability ? [dex.abilities.get(m.ability).name] : [...new Set(Object.values(sp.abilities) as string[])];
   const map = seedBySpecies.get(sp.id) ?? new Map();
@@ -51,10 +60,10 @@ for (const t of teams) for (const m of t.mons) {
     const set = { item: item.name, ability: ab, nature: m.nature, evs: m.evs, moves: m.moves.map((x: string) => dex.moves.get(x).name) };
     const key = JSON.stringify(set);
     const prev = map.get(key);
-    map.set(key, { w: (prev?.w ?? 0) + 1 / abilities.length, set });
+    map.set(key, { w: (prev?.w ?? 0) + W / abilities.length, set });
   }
   seedBySpecies.set(sp.id, map);
-  seedCount.set(sp.id, (seedCount.get(sp.id) ?? 0) + 1);
+  seedCount.set(sp.id, (seedCount.get(sp.id) ?? 0) + W);
 }
 const megaRate = megaHeld / megaCapable;
 
@@ -72,7 +81,7 @@ const top = (m: Map<string, number>, n: number) => [...m.entries()].sort((a, b) 
 
 const out: any = {};
 const legalSpecies = dex.species.all().filter((s: any) => s.exists && !s.isNonstandard && !s.battleOnly && !s.isMega && s.tier !== 'Illegal');
-let noRandom = 0;
+let noRandom = 0, fromSmogon = 0;
 for (const sp of legalSpecies) {
   const seedMap = seedBySpecies.get(sp.id);
   const n = seedCount.get(sp.id) ?? 0;
@@ -87,6 +96,28 @@ for (const sp of legalSpecies) {
     roles = [{ role: 'Unknown', pool, abilities: [...new Set(Object.values(sp.abilities) as string[])] }];
   }
   const megas = megaOf(sp).map((it: any) => it.name);
+  // Smogon の統計がある種族は、「それ以外の型」を統計から作る（M-7 の上位構築と比べて、Showdown の型データより現実に近かった。docs/season-import.md）
+  //  技の候補：採用率10%以上（多い順に最大10）。持ち物：上位8つ。性格と能力ポイント：上位6つ。特性：その種族が持てるもの
+  const sm = smogon.get(sp.id);
+  if (sm && sm.count > 0) {
+    const legalAb = (Object.values(sp.abilities) as string[]);
+    const abW = Object.entries(sm.abilities as Record<string, number>).filter(([k]) => legalAb.some(a => toID(a) === k));
+    const abilities = abW.length ? abW.sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.1 * abW[0][1]).map(([k]) => dex.abilities.get(k).name) : [...new Set(legalAb)];
+    const pool = Object.entries(sm.moves as Record<string, number>).filter(([k, v]) => k && v / sm.count >= 0.1).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k]) => dex.moves.get(k).name);
+    const items = topKeys(sm.items, 8).filter(k => dex.items.get(k).exists);
+    const itemTotal = items.reduce((a, k) => a + sm.items[k], 0);
+    const spreads = topKeys(sm.spreads, 6);
+    const spTotal = spreads.reduce((a, k) => a + sm.spreads[k], 0);
+    if (pool.length >= 4 && items.length && spreads.length) {
+      out[sp.id] = { name: sp.name, seedCount: n, otherWeight: 1 / (n + 1), seed, generic: [{
+        role: 'Smogon', pool, abilities,
+        items: items.map(k => ({ item: dex.items.get(k).name, w: sm.items[k] / itemTotal })),
+        spreads: spreads.map(k => { const p = parseSpread(k); return { nature: dex.natures.get(p.nature).name, evs: p.evs, w: sm.spreads[k] / spTotal }; }),
+      }] };
+      fromSmogon++;
+      continue;
+    }
+  }
   const generic = roles.map(r => {
     const dmg = r.pool.map(x => dex.moves.get(x)).filter((mv: any) => mv.category !== 'Status');
     const phys = dmg.filter((mv: any) => mv.category === 'Physical').length >= dmg.filter((mv: any) => mv.category === 'Special').length;
@@ -112,7 +143,7 @@ for (const sp of legalSpecies) {
 }
 mkdirSync(resolve(ROOT, 'data/priors'), { recursive: true });
 writeFileSync(resolve(ROOT, 'data/priors/sets.json'), JSON.stringify({
-  source: `data/seed/teams_m7.json と Showdown ${showdownCommit()} の data/random-battles/champions/sets.json から tools/gen-priors.ts で作成`,
+  source: `${season.teams}（重み1）${season.previous.length ? `、${season.previous.join('、')}（実際の型、重み${PREV_WEIGHT}）` : ''}、Smogon の統計 ${season.smogon ?? 'なし'}、Showdown ${showdownCommit()} の data/random-battles/champions/sets.json から tools/gen-priors.ts で作成`,
   megaRate, species: out,
 }));
-console.log(`種族 ${legalSpecies.length}（上位構築に出る ${seedBySpecies.size}、Showdown の型データがない ${noRandom}）、メガストーンを持つ割合 ${megaRate.toFixed(3)}`);
+console.log(`種族 ${legalSpecies.length}（上位構築に出る ${seedBySpecies.size}、それ以外の型を Smogon の統計から作った ${fromSmogon}、Showdown の型データがない ${noRandom}）、メガストーンを持つ割合 ${megaRate.toFixed(3)}`);
