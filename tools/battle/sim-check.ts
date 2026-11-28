@@ -96,8 +96,8 @@ for (let g = 0; g < GAMES; g++) {
     const input: TurnInput = {
       ours: oursAct, opp,
       first: bothMoved && moveLines.length >= 2 ? (moveLines[0].startsWith('|move|p2a') ? 'them' : 'us') : undefined,
-      // CRIT_UNKNOWN=1 のときは、画面と同じく「急所だったときだけ印、なければ空（分からない）」にする
-      critOnOpp: lines.some(l => l.startsWith('|-crit|p2a')) || (process.env.CRIT_UNKNOWN ? undefined : false), critOnUs: lines.some(l => l.startsWith('|-crit|p1a')) || (process.env.CRIT_UNKNOWN ? undefined : false),
+      // CRIT_UNKNOWN=1：画面と同じく「急所だったときだけ印、なければ空（分からない）」。CRIT_FORGET=1：急所を入れ忘れて「急所ではない」と入った場合
+      critOnOpp: process.env.CRIT_FORGET ? false : lines.some(l => l.startsWith('|-crit|p2a')) || (process.env.CRIT_UNKNOWN ? undefined : false), critOnUs: process.env.CRIT_FORGET ? false : lines.some(l => l.startsWith('|-crit|p1a')) || (process.env.CRIT_UNKNOWN ? undefined : false),
       oppItem: rv.item, oppAbility: rv.ability,
       ourMega: lines.some(l => l.startsWith('|-mega|p1a')), oppMega: lines.some(l => l.startsWith('|-mega|p2a')),
       after: { ourActive, ourHp: b.sides[0].active[0].hp, ourStatus: (b.sides[0].active[0].status || '') as StatusID, oppActive: oppActiveIdx, oppHpPct: shownPercent(s1.hp, s1.maxhp), oppStatus: (s1.status || '') as StatusID, ourHps },
