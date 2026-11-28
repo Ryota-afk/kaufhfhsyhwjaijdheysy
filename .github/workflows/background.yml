@@ -1,17 +1,18 @@
-# 裏の計算。毎日決まった時刻に動く（時刻は数時間ずれることがある）。全部で5つ並べる。
-# 先回りの計算：「よく使う」の印をつけたパーティ × 上位構築の選出の表を、4つに分けて並べて埋める。
-# 設定の比べ：探索の設定の候補を、今の設定と AIどうしで対戦させる（1つ）。
+# 裏の計算。6時間ごとに1日4回動く（時刻は数時間ずれることがある。前の回が終わっていなければ、終わるまで待つ）。全部で18並べる
+# （無料のアカウントで同時に動かせるのは20まで。残りの2はサイトの公開とシーズンの取り込み用）。
+# 先回りの計算：「よく使う」の印をつけたパーティ × 上位構築の選出の表を、12に分けて並べて埋める。
+# 設定の比べ：探索の設定の候補を、今の設定と AIどうしで対戦させる（6つに分けて並べ、後でまとめる）。
 # まとめ：先回りの計算の後に、表の一覧・相性の見積もりと、対戦記録から数えた型の割合・選出の傾向を作る。
 # 1回の作業は GitHub の上限（6時間）より短く区切り、途中の結果を data/precomputed/ に保存して、次の回に続きから再開する。
 name: 裏の計算
 on:
   schedule:
-    - cron: '47 15 * * *'   # 毎日 15:47（世界標準時）＝ 日本時間 0:47
+    - cron: '47 3,9,15,21 * * *'   # 世界標準時 3:47・9:47・15:47・21:47 ＝ 日本時間 12:47・18:47・0:47・6:47
   workflow_dispatch:
     inputs:
       minutes:
         description: '計算する分数（確かめ用に短くできる）'
-        default: '320'
+        default: '300'
 permissions:
   contents: write
 concurrency:
@@ -24,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,8 +42,9 @@ jobs:
         run: |
           echo "起動のきっかけ: ${{ github.event_name }}、時刻（世界標準時）: $(date -u '+%Y-%m-%d %H:%M:%S')"
           echo "論理コア数: $(nproc)"
-      - name: 先回りの計算（分担 ${{ matrix.shard }}/4）
-        run: npx tsx tools/select/precompute.ts --minutes ${{ github.event.inputs.minutes || '320' }} --shard ${{ matrix.shard }} --shards 4
+      - name: 先回りの計算（分担 ${{ matrix.shard }}/12）
+        # 6時間ごとに動くので、準備とまとめを入れて6時間に収まる300分で区切る
+        run: npx tsx tools/select/precompute.ts --minutes ${{ github.event.inputs.minutes || '300' }} --shard ${{ matrix.shard }} --shards 12
       - name: 結果をリポジトリに保存
         if: always()
         run: |
@@ -51,16 +53,21 @@ jobs:
           git add data/precomputed || true
           if git diff --cached --quiet; then echo '保存するものなし'; exit 0; fi
           git commit -m "先回りの計算（分担 ${{ matrix.shard }}、$(date -u '+%Y-%m-%d %H:%M')）"
-          # 4つの分担が同時に書くので、取り込み直して送る（ファイルは分担ごとに別なのでぶつからない）
-          for i in 1 2 3 4 5; do
+          # 12の分担が同時に書くので、取り込み直して送る（ファイルは分担ごとに別なのでぶつからない）
+          for i in 1 2 3 4 5 6 7 8 9 10; do
             git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0
             sleep $((i * 10))
           done
           exit 1
   compare:
-    # 探索の設定の比べ（2000試合以上で採用・不採用を決める。1回で終わらないので、毎日続きから）
+    # 探索の設定の比べ（2000試合以上で採用・不採用を決める）。6つに分けて並べ、組の番号を6で割った余りで打つ組を分ける。
+    # 各分担は自分の途中のファイル（data/learn/comparisons/<候補>.shard<番号>.json）だけを書く。まとめは compare-finish で行う。
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -73,24 +80,58 @@ jobs:
           path: vendor/showdown
           key: showdown-${{ hashFiles('tools/showdown/COMMIT') }}
       - run: npm run showdown:setup
-      - name: 設定の比べ
-        # 1試合が長いと（決着なしで60ターン、Actions で約28分）区切りを超えるので、選出の表より短い300分で区切る
-        run: npx tsx tools/learn/compare.ts --minutes ${{ github.event.inputs.minutes || '300' }}
+      - name: 設定の比べ（分担 ${{ matrix.shard }}/6）
+        # 1試合が長いと（決着なしで60ターン、Actions で約28分）区切りを超えるので、選出の表より短い280分で区切る
+        run: npx tsx tools/learn/compare.ts --minutes ${{ github.event.inputs.minutes || '280' }} --shard ${{ matrix.shard }} --shards 6
       - name: 結果をリポジトリに保存
         if: always()
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/learn || true
+          git add data/learn/comparisons || true
           if git diff --cached --quiet; then echo '保存するものなし'; exit 0; fi
-          git commit -m "設定の比べ（$(date -u '+%Y-%m-%d %H:%M')）"
+          git commit -m "設定の比べ（分担 ${{ matrix.shard }}、$(date -u '+%Y-%m-%d %H:%M')）"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0
+            sleep $((i * 10))
+          done
+          exit 1
+  compare-finish:
+    # 6つの分担が終わった後に1回だけ：分担のファイルをまとめの記録に足し、2000試合に届いたら採用・不採用を決めて記録する
+    needs: compare
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: vendor/showdown
+          key: showdown-${{ hashFiles('tools/showdown/COMMIT') }}
+      - run: npm run showdown:setup
+      - name: 比べのまとめと判定
+        run: npx tsx tools/learn/compare.ts --merge
+      - name: 保存
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A data/learn || true
+          if git diff --cached --quiet; then echo '保存するものなし'; exit 0; fi
+          git commit -m "設定の比べのまとめ（$(date -u '+%Y-%m-%d %H:%M')）"
           for i in 1 2 3 4 5; do
             git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && exit 0
             sleep $((i * 10))
           done
           exit 1
   finish:
-    # 4つの分担が終わった後に1回だけ：表の一覧と、近い構築から見積もるための相性を作って保存
+    # 12の分担が終わった後に1回だけ：表の一覧と、近い構築から見積もるための相性を作って保存
     needs: precompute
     if: always()
     runs-on: ubuntu-latest
