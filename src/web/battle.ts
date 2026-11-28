@@ -71,7 +71,7 @@ function renderSetup() {
     <datalist id="dl-species">${Object.entries(ja.species).map(([, v]) => `<option value="${esc(v as string)}">`).join('')}</datalist>
     <h3>選出のおすすめ</h3>
     <div id="s-select" class="muted">（こちらのパーティと相手の6体を入れると、読み合いで釣り合う選出を計算します）</div>
-    <p class="muted"><label>その場で計算する時間 <input id="s-time" type="number" min="5" max="85" value="${Math.round(selectBudget() / 1000)}" style="width:4em">秒</label>（6体を入れ終えてから、おすすめが出るまでの時間。保存した表がない相手のとき）</p>
+    <p class="muted"><label>その場で計算する時間 <input id="s-time" type="number" min="0" max="85" value="${Math.round(selectBudget() / 1000)}" style="width:4em">秒</label>（保存した表がない相手のとき、その場の試合で補う時間。0ならすぐに出す）</p>
     <h3>相手の先発</h3>
     <div id="s-opplead" class="row muted">（相手の6体を入れると選べます）</div>
     <p><label>先発の特性の発動（出たとき） <select id="s-oppab"><option value="">なし</option></select></label>
@@ -88,7 +88,7 @@ function renderSetup() {
   const trySelect = () => { const p = parties[Number((document.getElementById('s-party') as HTMLSelectElement).value)]; const ids = oppIds(); if (p && ids.every(Boolean)) computeSelection(p, ids).catch(e => { const el = document.getElementById('s-select'); if (el) el.innerHTML = `<p class="warn">選出を計算できませんでした：${esc(String(e?.message ?? e))}。3体と先発は自分で選んでください。</p>`; }); };
   (document.getElementById('s-party') as HTMLSelectElement).onchange = () => { renderOurs(); lastIds = ''; renderLead(); };
   renderOurs();
-  (document.getElementById('s-time') as HTMLInputElement).onchange = e => store(KEY_SELECT_TIME, Math.max(5, Math.min(85, Number((e.target as HTMLInputElement).value))) * 1000);
+  (document.getElementById('s-time') as HTMLInputElement).onchange = e => store(KEY_SELECT_TIME, Math.max(0, Math.min(85, Number((e.target as HTMLInputElement).value))) * 1000);
   // 6体の名前が変わったときだけ作り直す（入力欄の確定の後で押した先発のボタンが消えないように）
   let lastIds = '';
   const renderLead = () => {
@@ -132,8 +132,8 @@ function renderSetup() {
 }
 
 // ---- 選出のおすすめ ----
-/** 選出の計算時間（既定45秒。前の既定60秒のまま保存されていれば45秒にする） */
-function selectBudget(): number { const v = load<number>(KEY_SELECT_TIME, 45000); return v === 60000 ? 45000 : v; }
+/** その場の試合で補う時間（既定0秒＝すぐに出す。i5-5300 では45秒でも約30試合で、おすすめがほとんど変わらないため。前の既定60秒が保存されていれば0にする） */
+function selectBudget(): number { const v = load<number>(KEY_SELECT_TIME, 0); return v === 60000 ? 0 : v; }
 let selectGen = 0;
 let selectWorkers: Worker[] | null = null;
 let selectReady: Promise<void> | null = null;
@@ -181,7 +181,9 @@ async function computeSelection(p: any, ids: string[]) {
     const priors = mergePriors(await fetchJson(`${base}data/priors/sets.json`), await fetchJson(`${base}data/priors/learned.json`));
     theirs = ids.map(id => likelySet(priors?.species?.[id]));
     if (theirs.some(x => !x)) { el.innerHTML = `<p class="warn">型の候補がない相手がいるため、選出を計算できません：${esc(ids.filter((_, i) => !theirs[i]).map(id => jn('species', id)).join('、'))}</p>`; return; }
-    basis.push(prior ? `近い構築からの見積もり（保存した表 ${model.tables}個・${model.games}試合から作った相性）` : '保存した表も近い構築の結果もありません（その場の試合だけなので、確率はあてになりません）');
+    basis.push(prior ? `近い構築からの見積もり（保存した表 ${model.tables}個・${model.games}試合から作った相性）` : '保存した表も近い構築の結果もありません（確率はあてになりません）');
+    if (selectBudget() <= 0) { sol = solveTable(stats, prior); }
+    else {
     const { workers, ready } = getSelectWorkers();
     await ready;
     const free = [...workers];
@@ -202,6 +204,7 @@ async function computeSelection(p: any, ids: string[]) {
       onProgress: g => { const pe = document.getElementById('s-prog'); if (pe && gen === selectGen) pe.textContent = String(g); } });
     sol = r.sol; games = r.games; ms = r.ms;
     if (games) basis.push(`その場の試合 ${games}（${(ms / 1000).toFixed(0)}秒）`);
+    }
   }
   if (gen !== selectGen || !document.getElementById('s-select')) return;
   // こちらの確率の高い順。くじは確率どおりに引く
@@ -482,7 +485,9 @@ async function recordTurn() {
   const oppItem = itemText ? resolve('items', itemText) : '', oppAbility = abText ? resolve('abilities', abText) : '';
   if (itemText && !oppItem) { msgEl.textContent = '相手の持ち物の名前が分かりません。'; return; }
   if (abText && !oppAbility) { msgEl.textContent = '相手の特性の名前が分かりません。'; return; }
-  const ourHps = [...document.querySelectorAll<HTMLInputElement>('.t-ourhp')].map(x => Number(x.value));
+  // 画面の並び（場の体が先頭）ではなく、欄の体の番号（data-i）の順に読む
+  const ourHps: number[] = [];
+  document.querySelectorAll<HTMLInputElement>('.t-ourhp').forEach(x => { ourHps[Number(x.dataset.i)] = Number(x.value); });
   // 場の体は、交代と倒れた後の選び（updateRows が t-ouractive / t-oppactive に入れている）から決まる
   const ourActive = Number((document.getElementById('t-ouractive') as HTMLSelectElement).value);
   if (ourHps[ourActive] <= 0 && ourHps.some(h => h > 0)) { msgEl.textContent = '倒れた後に出した体を選んでください。'; return; }

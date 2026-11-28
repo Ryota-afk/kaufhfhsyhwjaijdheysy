@@ -53,15 +53,17 @@ await page.addInitScript(([p, ms]: any) => { if (!localStorage.getItem('champion
 await page.goto(url);
 await page.waitForSelector('#s-start', { timeout: 60000 });
 
-let ops = 0;
+let ops = 0, hpMismatch = 0;
 const click = async (sel: string) => { await page.click(sel); ops++; };
 const fill = async (sel: string, v: string) => { await page.fill(sel, v); await page.dispatchEvent(sel, 'change'); ops++; };
 const select = async (sel: string, v: string) => { await page.selectOption(sel, v); ops++; };
 
 // 準備
-for (const i of ourIdx) await click(`.s-pick[data-i="${i}"]`);
-await click(`input[name="s-lead"][value="${ourIdx[0]}"]`);
+// 相手の6体を入れると、選出のおすすめのくじが準備欄に入る。その後で、本当の対戦の3体と先発に選び直す
 for (let i = 0; i < 6; i++) await fill(`.s-opp[data-i="${i}"]`, J('species', team.mons[i].species));
+await page.waitForFunction(() => /くじの結果|計算できません/.test(document.getElementById('s-select')?.innerText ?? ''), null, { timeout: 60000 });
+for (let i = 0; i < 6; i++) { const want = ourIdx.includes(i), cur = await page.isChecked(`.s-pick[data-i="${i}"]`); if (want !== cur) await click(`.s-pick[data-i="${i}"]`); }
+if (!(await page.isChecked(`input[name="s-lead"][value="${ourIdx[0]}"]`))) await click(`input[name="s-lead"][value="${ourIdx[0]}"]`);
 await click(`input[name="s-opplead"][value="${oppIdx[0]}"]`);
 // 先発の特性・持ち物の発動
 const startLines: string[] = b.log;
@@ -160,6 +162,10 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
   const fixes = ops - opsBeforeFix;
   await page.click('#t-record');
   const ms2 = await waitResult();
+  // 記録した HP が、本当の体ごとの HP と一致するか（画面の並びと体の番号を取り違えていないか）
+  const recHps = await page.evaluate(() => { const d = (window as any).__battle.doc; return d.turns[d.turns.length - 1].input.after.ourHps; });
+  const trueHps = ourIdx.map(i => b.sides[0].pokemon.find((p: any) => p.baseSpecies.baseSpecies === dex.species.get(party[i].species).baseSpecies).hp);
+  if (JSON.stringify(recHps) !== JSON.stringify(trueHps)) { hpMismatch++; console.log(`ターン${t + 1}：記録した HP ${JSON.stringify(recHps)} ／ 本当 ${JSON.stringify(trueHps)}`); }
   results.push({ turn: t + 1, ms: ms2, ops: turnOps + 1, fixes, predMs, top: await page.$$eval('#result tr td strong', (xs: any[]) => xs.map(x => x.textContent)), time: (await page.textContent('#r-time'))?.split('。')[0] });
   // 3ターン目の後で読み込み直す
   if (t === 2) {
@@ -193,6 +199,7 @@ await browser.close();
 try { process.kill(-server.pid!); } catch { /* もう止まっている */ }
 for (const r of results) console.log(`ターン${r.turn}：上位 ${r.top.join(' ／ ')}（${r.top.length}手）、記録→表示 ${(r.ms / 1000).toFixed(1)}秒、操作 ${r.ops}回${r.fixes !== undefined ? `（うち予想を直した ${r.fixes}回、予想まで ${((r.predMs ?? 0) / 1000).toFixed(1)}秒）` : ''}${r.time ? `（画面の表示：${r.time}）` : ''}`);
 console.log(`準備の操作 ${setupOps}回`);
+console.log(`${hpMismatch === 0 ? '合格' : '不合格'}：記録したこちらの HP が、毎ターン本当の体ごとの HP と一致した（ずれたターン ${hpMismatch}）`);
 const allThree = results.every(r => r.top.length >= 2);
 const inTime = results.filter(r => r.turn > 0).every(r => r.ms <= SECS * 1000);
 console.log(`${inTime ? '合格' : '不合格'}：毎ターン、「記録して計算」から表示まで ${SECS}秒以内`);

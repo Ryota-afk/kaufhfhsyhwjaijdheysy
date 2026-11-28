@@ -5,14 +5,14 @@
 //  1. 表を保存した構築（1位）の6体を入れると、すぐに選出の確率の表と勝率が出て、くじの結果が準備欄に入る
 //  2. 表のない構築の6体を入れると、近い構築からの見積もり＋その場の試合で、決めた時間の中で表が出る
 //  3. ページのエラーがない
-// 使い方：npx tsx tools/browser/select-e2e.ts [その場の計算の秒数=8]
+// 使い方：npx tsx tools/browser/select-e2e.ts [その場の計算の秒数=0（すぐ出す）]
 import { spawn } from 'node:child_process';
 import { readFileSync, cpSync, rmSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
-const SECS = Number(process.argv[2] ?? 8);
+const SECS = Number(process.argv[2] ?? 0);
 const ja = JSON.parse(readFileSync('data/names/ja.json', 'utf8'));
 const party = JSON.parse(readFileSync('.build/party-test.json', 'utf8'));
 const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8'));
@@ -70,8 +70,13 @@ await page.waitForFunction((rank: number) => { const t = document.getElementById
 r = await readResult();
 const sec = (Date.now() - t0) / 1000;
 console.log(`表のない構築：${sec.toFixed(1)}秒\n${r.text}`);
-check(/近い構築からの見積もり/.test(r.text) && /その場の試合/.test(r.text), '近い構築からの見積もりと、その場の試合で表が出た');
-check(sec < SECS + 15, `決めた時間（${SECS}秒）＋1試合分の中で出た（${sec.toFixed(1)}秒）`);
+if (SECS > 0) {
+  check(/近い構築からの見積もり/.test(r.text) && /その場の試合/.test(r.text), '近い構築からの見積もりと、その場の試合で表が出た');
+  check(sec < SECS + 15, `決めた時間（${SECS}秒）＋1試合分の中で出た（${sec.toFixed(1)}秒）`);
+} else {
+  check(/近い構築からの見積もり/.test(r.text) && !/その場の試合/.test(r.text), 'その場の試合なしで、近い構築からの見積もりだけで表が出た');
+  check(sec < 5, `すぐに出た（${sec.toFixed(1)}秒）`);
+}
 check(r.picks.length === 3 && r.picks.includes(r.lead), 'くじの結果が準備欄に入った');
 check(valueOk(r.text), '釣り合いの勝率が0〜100%');
 
