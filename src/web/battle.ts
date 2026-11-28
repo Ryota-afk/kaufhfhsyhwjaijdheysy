@@ -67,7 +67,7 @@ function renderSetup() {
     <datalist id="dl-species">${Object.entries(ja.species).map(([, v]) => `<option value="${esc(v as string)}">`).join('')}</datalist>
     <h3>選出のおすすめ</h3>
     <div id="s-select" class="muted">（こちらのパーティと相手の6体を入れると、読み合いで釣り合う選出を計算します）</div>
-    <p class="muted"><label>その場で計算する時間 <input id="s-time" type="number" min="5" max="85" value="${Math.round(load<number>(KEY_SELECT_TIME, 60000) / 1000)}" style="width:4em">秒</label>（保存した表がない相手のとき。選出時間は90秒）</p>
+    <p class="muted"><label>その場で計算する時間 <input id="s-time" type="number" min="5" max="85" value="${Math.round(selectBudget() / 1000)}" style="width:4em">秒</label>（6体を入れ終えてから、おすすめが出るまでの時間。保存した表がない相手のとき）</p>
     <h3>相手の先発</h3>
     <div id="s-opplead" class="row muted">（相手の6体を入れると選べます）</div>
     <p><label>先発の特性の発動（出たとき） <select id="s-oppab"><option value="">なし</option></select></label>
@@ -128,6 +128,8 @@ function renderSetup() {
 }
 
 // ---- 選出のおすすめ ----
+/** 選出の計算時間（既定45秒。前の既定60秒のまま保存されていれば45秒にする） */
+function selectBudget(): number { const v = load<number>(KEY_SELECT_TIME, 45000); return v === 60000 ? 45000 : v; }
 let selectGen = 0;
 let selectWorkers: Worker[] | null = null;
 let selectReady: Promise<void> | null = null;
@@ -142,6 +144,7 @@ function getSelectWorkers() {
 
 /** 相手の6体が決まったら：保存した表を読む。なければ近い構築からの見積もりと、その場の試合で補う。結果を出し、確率どおりにくじを引いて準備欄に入れる。 */
 async function computeSelection(p: any, ids: string[]) {
+  const tStart = performance.now();
   const gen = ++selectGen;
   const el = document.getElementById('s-select');
   if (!el) return;
@@ -187,7 +190,9 @@ async function computeSelection(p: any, ids: string[]) {
         return await new Promise<number>((res, rej) => { w.onmessage = ev => ev.data.type === 'game' ? res(ev.data.v) : rej(new Error(ev.data.message)); w.postMessage({ ours, theirs, r, c, iters: 100, seed }); });
       } finally { release(w); }
     };
-    const timeMs = load<number>(KEY_SELECT_TIME, 60000);
+    // 6体を入れ終えた時点（computeSelection の始め）から数えて、決めた時間（既定45秒）の中に収める。
+    // 打ちかけの試合が締め切りの後に終わる分（i5-5300 で1試合数秒の見込み）として3秒残す
+    const timeMs = Math.max(3000, selectBudget() - (performance.now() - tStart) - 3000);
     el.innerHTML = `<p>選出を計算しています…（その場の試合：<span id="s-prog">0</span>、最大${Math.round(timeMs / 1000)}秒）</p>`;
     const r = await spotSolve({ stats, prior, timeMs, workers: workers.length, play, cancelled: () => gen !== selectGen,
       onProgress: g => { const pe = document.getElementById('s-prog'); if (pe && gen === selectGen) pe.textContent = String(g); } });
