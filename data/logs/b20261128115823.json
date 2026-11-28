@@ -1,0 +1,365 @@
+{
+ "id": "b20261128115823",
+ "partyName": "攻めパ",
+ "setup": {
+  "ours": [
+   {
+    "species": "salamence",
+    "item": "salamencite",
+    "ability": "intimidate",
+    "nature": "Adamant",
+    "evs": {
+     "hp": 1,
+     "atk": 24,
+     "def": 0,
+     "spa": 0,
+     "spd": 9,
+     "spe": 32
+    },
+    "moves": [
+     "doubleedge",
+     "earthquake",
+     "dragondance",
+     "roost"
+    ]
+   },
+   {
+    "species": "primarina",
+    "item": "sitrusberry",
+    "ability": "liquidvoice",
+    "nature": "Modest",
+    "evs": {
+     "hp": 32,
+     "atk": 0,
+     "def": 6,
+     "spa": 4,
+     "spd": 0,
+     "spe": 24
+    },
+    "moves": [
+     "moonblast",
+     "psychicnoise",
+     "aquajet",
+     "encore"
+    ]
+   },
+   {
+    "species": "kleavor",
+    "item": "focussash",
+    "ability": "sharpness",
+    "nature": "Adamant",
+    "evs": {
+     "hp": 2,
+     "atk": 32,
+     "def": 0,
+     "spa": 0,
+     "spd": 0,
+     "spe": 32
+    },
+    "moves": [
+     "stoneaxe",
+     "xscissor",
+     "closecombat",
+     "feint"
+    ]
+   }
+  ],
+  "ourLead": 0,
+  "oppSpecies": [
+   "rotomheat",
+   "greninja",
+   "decidueyehisui",
+   "excadrill",
+   "starmie",
+   "gengar"
+  ],
+  "ourTeamJa": [
+   "ボーマンダ",
+   "ルカリオ",
+   "ガブリアス",
+   "アシレーヌ",
+   "ヒートロトム",
+   "バサギリ"
+  ]
+ },
+ "start": {
+  "oppLead": 1
+ },
+ "turns": [
+  {
+   "input": {
+    "ours": {
+     "kind": "switch",
+     "to": 1
+    },
+    "opp": {
+     "kind": "move",
+     "move": "icebeam"
+    },
+    "ourMega": false,
+    "oppMega": false,
+    "after": {
+     "ourActive": 1,
+     "ourHp": 168,
+     "ourStatus": "",
+     "oppActive": 1,
+     "oppHpPct": 100,
+     "oppStatus": "",
+     "ourHps": [
+      171,
+      168,
+      147
+     ]
+    }
+   }
+  },
+  {
+   "input": {
+    "ours": {
+     "kind": "none"
+    },
+    "opp": {
+     "kind": "move",
+     "move": "toxicspikes"
+    },
+    "ourMega": false,
+    "oppMega": false,
+    "after": {
+     "ourActive": 1,
+     "ourHp": 171,
+     "ourStatus": "frz",
+     "oppActive": 1,
+     "oppHpPct": 100,
+     "oppStatus": "",
+     "ourHps": [
+      168,
+      171,
+      147
+     ]
+    }
+   }
+  },
+  {
+   "input": {
+    "ours": {
+     "kind": "none"
+    },
+    "opp": {
+     "kind": "switch",
+     "to": 2
+    },
+    "ourMega": false,
+    "oppMega": false,
+    "after": {
+     "ourActive": 1,
+     "ourHp": 168,
+     "ourStatus": "frz",
+     "oppActive": 2,
+     "oppHpPct": 100,
+     "oppStatus": "",
+     "ourHps": [
+      171,
+      168,
+      147
+     ]
+    }
+   }
+  },
+  {
+   "input": {
+    "ours": {
+     "kind": "move",
+     "slot": 0,
+     "mega": false
+    },
+    "opp": {
+     "kind": "move",
+     "move": "leafblade"
+    },
+    "first": "us",
+    "oppItem": "sitrusberry",
+    "ourMega": false,
+    "oppMega": false,
+    "after": {
+     "ourActive": 1,
+     "ourHp": 171,
+     "ourStatus": "",
+     "oppActive": 2,
+     "oppHpPct": 57,
+     "oppStatus": "",
+     "ourHps": [
+      22,
+      171,
+      147
+     ]
+    }
+   }
+  },
+  {
+   "input": {
+    "ours": {
+     "kind": "move",
+     "slot": 0,
+     "mega": false
+    },
+    "opp": {
+     "kind": "none"
+    },
+    "ourMega": false,
+    "oppMega": false,
+    "after": {
+     "ourActive": 1,
+     "ourHp": 22,
+     "ourStatus": "",
+     "oppActive": 4,
+     "oppHpPct": 100,
+     "oppStatus": "",
+     "ourHps": [
+      68,
+      22,
+      147
+     ]
+    }
+   }
+  },
+  {
+   "input": {
+    "ours": {
+     "kind": "switch",
+     "to": 0
+    },
+    "opp": {
+     "kind": "move",
+     "move": "liquidation"
+    },
+    "ourMega": false,
+    "oppMega": true,
+    "after": {
+     "ourActive": 0,
+     "ourHp": 68,
+     "ourStatus": "",
+     "oppActive": 4,
+     "oppHpPct": 100,
+     "oppStatus": "",
+     "ourHps": [
+      68,
+      115,
+      147
+     ]
+    }
+   }
+  },
+  {
+   "input": {
+    "ours": {
+     "kind": "move",
+     "slot": 0,
+     "mega": true
+    },
+    "opp": {
+     "kind": "none"
+    },
+    "ourMega": true,
+    "oppMega": false,
+    "after": {
+     "ourActive": 0,
+     "ourHp": 68,
+     "ourStatus": "",
+     "oppActive": 1,
+     "oppHpPct": 100,
+     "oppStatus": "",
+     "ourHps": [
+      68,
+      115,
+      147
+     ]
+    }
+   }
+  },
+  {
+   "input": {
+    "ours": {
+     "kind": "none"
+    },
+    "opp": {
+     "kind": "move",
+     "move": "darkpulse"
+    },
+    "ourMega": false,
+    "oppMega": false,
+    "after": {
+     "ourActive": 2,
+     "ourHp": 147,
+     "ourStatus": "",
+     "oppActive": 1,
+     "oppHpPct": 100,
+     "oppStatus": "",
+     "ourHps": [
+      0,
+      68,
+      147
+     ]
+    }
+   },
+   "visible": {
+    "boosts": [
+     {},
+     {}
+    ],
+    "cond": [
+     {},
+     {
+      "toxicspikes": 1
+     }
+    ],
+    "vol": [
+     {
+      "leechseed": false,
+      "substitute": false
+     },
+     {
+      "leechseed": false,
+      "substitute": false
+     }
+    ],
+    "ourItem": "focussash",
+    "weather": "",
+    "terrain": "",
+    "trickroom": false
+   }
+  },
+  {
+   "input": {
+    "ours": {
+     "kind": "move",
+     "slot": 1,
+     "mega": false
+    },
+    "opp": {
+     "kind": "move",
+     "move": "darkpulse"
+    },
+    "first": "them",
+    "oppItem": "focussash",
+    "ourMega": false,
+    "oppMega": false,
+    "after": {
+     "ourActive": 2,
+     "ourHp": 68,
+     "ourStatus": "psn",
+     "oppActive": 1,
+     "oppHpPct": 1,
+     "oppStatus": "",
+     "ourHps": [
+      47,
+      0,
+      68
+     ]
+    }
+   }
+  }
+ ],
+ "startedAt": "2026-11-28T11:58:23.359Z",
+ "endedAt": "2026-11-28T12:06:05.255Z",
+ "outcome": "勝ち"
+}
