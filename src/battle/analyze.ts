@@ -31,7 +31,9 @@ export interface TurnInput {
   oppAbility?: string;             // 相手の特性の発動（英語名）
   ourMega?: boolean;               // こちらがこのターンにメガシンカした（技を出せなくてもメガシンカは起きる）
   oppMega?: boolean;               // 相手がこのターンにメガシンカした
-  after: { ourActive: number; ourHp: number; ourStatus: StatusID; oppActive: number; oppHpPct: number; oppStatus: StatusID; ourHps?: number[] };
+  // ourActive の HP が0なら、その体は倒れて交代先がまだ（死に出しの場面）。oppActive も同じ（相手の HP% が0で、両方倒れたとき）
+  // oppHps：ターンの後の場の体以外の相手の体の HP%（6体の番号 → %）。場から下がった体（とんぼがえり・ドラゴンテール・倒れた等）の値
+  after: { ourActive: number; ourHp: number; ourStatus: StatusID; oppActive: number; oppHpPct: number; oppStatus: StatusID; ourHps?: number[]; oppHps?: Record<number, number> };
   visible?: VisibleState;
 }
 /** 画面に見える状態（「今の状態」欄で確かめ・直したもの）。入っていれば、再現の値を上書きする。 */
@@ -43,6 +45,8 @@ export interface VisibleState {
   ourItem?: string;   // こちらの場の体が今持っている持ち物（id、'' はなし）。トリック等で変わったとき用
 }
 export interface StartInput { oppLead: number; oppAbility?: string; oppItem?: string }
+/** 死に出し：倒れた体に代わって出した体と、出てきた後の HP（ステルスロック等の後）。ourTo はこちらの3体の番号、oppTo は相手の6体の番号。 */
+export interface ReplaceInput { ourTo?: number; oppTo?: number; ourHps?: number[]; oppHpPct?: number; oppAbility?: string; oppItem?: string }
 
 interface OppMonState { seen: boolean; hpPct: number; status: StatusID; fainted: boolean }
 
@@ -247,7 +251,19 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       oa.hpPct = t.after.oppHpPct; oa.status = t.after.oppStatus; oa.fainted = t.after.oppHpPct <= 0;
       // 相手が倒れた体
       for (const [k, i] of order.entries()) if (pos.sides[1].mons[k].hp <= 0 && i !== t.after.oppActive) { this.opp[i].fainted = true; this.opp[i].hpPct = 0; }
-      for (const [k, i] of order.entries()) if (i !== t.after.oppActive && !this.opp[i].fainted && this.opp[i].seen) this.opp[i].hpPct = shownPercent(pos.sides[1].mons[k].hp, maxhpOf(pos.sides[1].mons[k].set));
+      // 死に出しの場面では、再現が交代先を勝手に選んで出している（ステルスロック等を受けている）ので、ほかの体の HP は再現から取らない
+      const pendingSwitch = t.after.ourHp <= 0 || t.after.oppHpPct <= 0;
+      // 控えにいた体の HP は変わらないので、取り直すのはターンの始めに場にいた体だけ（%→実数→% の行き来で1ずつ減っていくのを防ぐ）
+      // 入力にない体は、入力から見てそのターンに場にいた体（ターンの始めの場の体・交代先）で、再現で HP が動いたときだけ再現の値を使う
+      // （再現が本当と違う展開を選ぶと、場に出ていない体の HP が動くことがあるため）
+      const onFieldIdx = new Set<number>([oppActiveIdx, ...(t.opp.kind === 'switch' ? [t.opp.to] : [])]);
+      if (!pendingSwitch) for (const [k, i] of order.entries()) {
+        if (i === t.after.oppActive || this.opp[i].fainted || !this.opp[i].seen || !onFieldIdx.has(i) || t.after.oppHps?.[i] !== undefined) continue;
+        const before = replayPos.sides[1].mons[k], after = pos.sides[1].mons[k];
+        if (before && after && before.hp !== after.hp) this.opp[i].hpPct = shownPercent(after.hp, maxhpOf(after.set));
+      }
+      // 画面で見えた相手の体ごとの HP%（場から下がった体の値）
+      for (const [is, pct] of Object.entries(t.after.oppHps ?? {})) { const i = Number(is); if (i === t.after.oppActive) continue; this.opp[i].seen = true; this.opp[i].hpPct = pct; this.opp[i].fainted = pct <= 0; const k = order.indexOf(i); if (k >= 0) { const m = pos.sides[1].mons[k]; m.hp = pct <= 0 ? 0 : Math.max(1, Math.round(maxhpOf(m.set) * pct / 100)); if (pct <= 0) m.status = ''; } }
       pos.sides[1].active = Math.max(0, order.indexOf(t.after.oppActive));
       pos.sides[1].mons[pos.sides[1].active].status = t.after.oppStatus;
       // メガシンカは画面に出るので、入力どおりにする
@@ -298,6 +314,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
         const pos: Position = { ...start, sides: [start.sides[0], this.oppSide(order, start, i => this.mapSet(i, i === oppActiveIdx ? oppMove : undefined))] };
         const firsts: string[] = [], ourActs: number[] = [], oppActs: number[] = [], ourSt: string[] = [], oppSt: string[] = [];
         const ourHps: number[][] = start.sides[0].mons.map(() => []), oppPcts: number[] = [];
+        const oppPctsBy = new Map<number, number[]>();   // 相手の6体の番号 → 各乱数での HP%
         for (let seed = 1; seed <= seeds; seed++) {
           let r;
           try { r = new Runner(pos, seed); } catch { break; }
@@ -321,6 +338,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
           ourSt.push(p.sides[0].mons[p.sides[0].active].status || '');
           const om = p.sides[1].mons[p.sides[1].active];
           oppPcts.push(shownPercent(om.hp, maxhpOf(om.set))); oppSt.push(om.status || '');
+          p.sides[1].mons.forEach((m, k) => { const i = order[k]; if (!oppPctsBy.has(i)) oppPctsBy.set(i, []); oppPctsBy.get(i)!.push(shownPercent(m.hp, maxhpOf(m.set))); });
         }
         if (!oppPcts.length) return null;
         const median = (xs: number[]) => { const v = [...xs].sort((a, b) => a - b); return v[Math.floor(v.length / 2)]; };
@@ -331,9 +349,63 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
           firstSure: firsts.length ? Math.max(firstUs, firsts.length - firstUs) / firsts.length : 0,
           ourHps: ourHps.map(median), ourActive: mode(ourActs), ourStatus: mode(ourSt), oppActive: mode(oppActs), oppHpPct: median(oppPcts), oppStatus: mode(oppSt),
           oppHpRange: [Math.min(...oppPcts), Math.max(...oppPcts)] as [number, number], n: oppPcts.length,
+          oppHps: Object.fromEntries([...oppPctsBy].map(([i, xs]) => [i, median(xs)])) as Record<number, number>,
         };
       } finally {
         if (sw >= 0) this.opp[sw].seen = seenBefore;
+      }
+    }
+
+    /** 死に出しの場面か：倒れた場の体があり、控えが残っている側（0 こちら、1 相手）。 */
+    pendingSides(): (0 | 1)[] {
+      const out: (0 | 1)[] = [];
+      const us = this.pos.sides[0];
+      // 決着していれば（こちらが全員倒れた、または相手が3体倒れた）死に出しはない
+      if (!us.mons.some(m => m.hp > 0) || this.opp.filter(o => o.fainted).length >= 3) return out;
+      if (us.mons[us.active].hp <= 0 && us.mons.some(m => m.hp > 0)) out.push(0);
+      const oi = this.oppOrder[this.pos.sides[1].active];
+      const fainted = this.opp.filter(o => o.fainted).length;
+      if (this.opp[oi]?.fainted && fainted < 3) out.push(1);
+      return out;
+    }
+
+    /**
+     * 死に出しを記録する（dryRun なら、出てきた後の HP の予想だけを返し、推定の状態は変えない）。
+     * 交代先を Showdown で出して（ステルスロック・いかく等が起きる）、画面の HP で上書きする。
+     */
+    replace(r: ReplaceInput, dryRun = false) {
+      const start = this.pos;
+      const oppActiveIdx = this.oppOrder[start.sides[1].active];
+      const seenBefore = r.oppTo !== undefined ? this.opp[r.oppTo].seen : true;
+      if (r.oppTo !== undefined) this.opp[r.oppTo].seen = true;
+      const order = [oppActiveIdx, ...(r.oppTo !== undefined ? [r.oppTo] : []), ...this.oppTrio().filter(i => i !== oppActiveIdx && i !== r.oppTo)].slice(0, 3);
+      try {
+        const pos: Position = { ...start, sides: [start.sides[0], this.oppSide(order, start, i => this.mapSet(i))] };
+        const run = new Runner(pos, 1, true);
+        const a0: Action | null = r.ourTo !== undefined ? { kind: 'switch', to: r.ourTo } : null;
+        const a1: Action | null = r.oppTo !== undefined ? { kind: 'switch', to: order.indexOf(r.oppTo) } : null;
+        const legal0 = run.legalActions(0), legal1 = run.legalActions(1);
+        run.play(a0 && legal0.some((x: any) => x.kind === 'switch' && x.to === (a0 as any).to) ? a0 : null, a1 && legal1.some((x: any) => x.kind === 'switch' && x.to === (a1 as any).to) ? a1 : null);
+        const p = run.toPosition();
+        if (r.ourTo !== undefined) p.sides[0].active = r.ourTo;
+        if (r.oppTo !== undefined) p.sides[1].active = order.indexOf(r.oppTo);
+        const om = p.sides[1].mons[p.sides[1].active];
+        const pred = { ourHps: p.sides[0].mons.map(m => m.hp), oppHpPct: shownPercent(om.hp, maxhpOf(om.set)) };
+        if (dryRun) return pred;
+        // 画面の値で上書き
+        if (r.ourHps) r.ourHps.forEach((hp, k) => { p.sides[0].mons[k].hp = hp; if (hp <= 0) p.sides[0].mons[k].status = ''; });
+        if (r.oppTo !== undefined) {
+          const pct = r.oppHpPct ?? pred.oppHpPct;
+          this.opp[r.oppTo].hpPct = pct; this.opp[r.oppTo].fainted = pct <= 0;
+          om.hp = pct <= 0 ? 0 : Math.max(1, Math.round(maxhpOf(om.set) * pct / 100));
+          if (r.oppAbility) this.sets[r.oppTo].add(clueAbility(r.oppAbility));
+          if (r.oppItem) this.sets[r.oppTo].add(clueItem(r.oppItem));
+        }
+        this.oppOrder = order;
+        this.pos = p;
+        return pred;
+      } finally {
+        if (dryRun && r.oppTo !== undefined) this.opp[r.oppTo].seen = seenBefore;
       }
     }
 
@@ -366,8 +438,9 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
     private mismatch(t: TurnInput, p: Position, log: string[], order: number[]): number {
       let s = 0;
       const us = p.sides[0], them = p.sides[1];
-      if (us.active !== t.after.ourActive) s += 3;
-      if (order[them.active] !== t.after.oppActive) s += 3;
+      // 倒れて交代先がまだの側は、再現が交代先を出しているので場の体を比べない（倒れたことは HP で比べる）
+      if (t.after.ourHp > 0 && us.active !== t.after.ourActive) s += 3;
+      if (t.after.oppHpPct > 0 && order[them.active] !== t.after.oppActive) s += 3;
       const ua = us.mons[t.after.ourActive];
       s += Math.abs(ua.hp - t.after.ourHp) / maxhpOf(ua.set);
       if ((ua.status || '') !== t.after.ourStatus) s += 1;

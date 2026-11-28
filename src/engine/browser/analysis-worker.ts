@@ -10,7 +10,7 @@ function view() {
   if (!an) return null;
   const seen = an.opp.map((o, i) => o.seen ? i : -1).filter(i => i >= 0);
   return {
-    pos: an.pos, opp: an.opp, oppOrder: an.oppOrder, turn: an.turn, notes: an.notes,
+    pos: an.pos, opp: an.opp, oppOrder: an.oppOrder, turn: an.turn, notes: an.notes, pending: an.pendingSides(),
     summaries: Object.fromEntries(seen.map(i => [i, an!.summary(i)])),
   };
 }
@@ -31,13 +31,18 @@ self.onmessage = async (ev: MessageEvent) => {
       // 最初のターンの前に「今の状態」で直したもの
       if (msg.battle.startVisible) an.applyVisible(an.pos, msg.battle.startVisible);
       for (const step of msg.battle.turns) {
-        an.record(step.input);
+        if (step.replace) an.replace(step.replace); else an.record(step.input);
         if (step.visible) an.applyVisible(an.pos, step.visible);
       }
       (self as any).postMessage({ type: 'view', view: view() });
     } else if (msg.type === 'record') {
       an!.record(msg.input);
       (self as any).postMessage({ type: 'view', view: view() });
+    } else if (msg.type === 'replace') {
+      an!.replace(msg.input);
+      (self as any).postMessage({ type: 'view', view: view() });
+    } else if (msg.type === 'replacePreview') {
+      (self as any).postMessage({ type: 'replacePreview', pred: an!.replace(msg.input, true) });
     } else if (msg.type === 'predict') {
       (self as any).postMessage({ type: 'predict', pred: an!.predict(msg.input) });
     } else if (msg.type === 'edit') {

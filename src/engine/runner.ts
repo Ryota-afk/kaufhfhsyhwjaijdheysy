@@ -172,11 +172,17 @@ export function makeRunner(PS: any, FORMAT: string) {
         }
       }
       for (const p of b.getAllActive()) p.updateSpeed();
-      b.makeRequest('move');
+      // 場の体が倒れていて控えが残っている側は、交代先を選ぶ要求にする（死に出しの場面。Showdown と同じく switchFlag で表す）
+      let needSwitch = false;
+      for (const side of b.sides) {
+        const a = side.active[0];
+        if (a && a.fainted && side.pokemon.some((q: any) => !q.fainted && !q.isActive)) { a.switchFlag = true; needSwitch = true; }
+      }
+      b.makeRequest(needSwitch ? 'switch' : 'move');
     }
 
     /** Showdown の選び方の文字列にする。 */
-    private choiceString(si: number, a: Action): string {
+    choiceString(si: number, a: Action): string {
       const side = this.battle.sides[si];
       if (a.kind === 'move') return `move ${a.slot + 1}${a.mega ? ' mega' : ''}`;
       const k = side.pokemon.findIndex((p: any) => indexOf(this.pos.sides[si], p) === a.to);

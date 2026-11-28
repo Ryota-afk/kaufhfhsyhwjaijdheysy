@@ -1,7 +1,7 @@
 // 対戦中の画面：準備 → 毎ターンの入力 → 記録係（Worker）で盤面と推定を更新 → 探索（Worker を並べて10秒）で上位3手。
 // 対戦の記録はブラウザに保存し、ページを開き直しても記録から当て直して戻る。終えたら data/logs/ にも書く（合い鍵があれば）。
 import dexJson from '../engine/data/dex.json';
-import type { BattleSetup, TurnInput, StartInput, VisibleState } from '../battle/analyze.ts';
+import type { BattleSetup, TurnInput, StartInput, VisibleState, ReplaceInput } from '../battle/analyze.ts';
 import type { Position, StatusID, MonSet } from '../engine/position.ts';
 import { SearchPool } from '../search/coordinator.ts';
 import { putFile } from '../party/github.ts';
@@ -242,6 +242,9 @@ function renderBattle() {
   const canMegaOpp = !them.megaUsed && !oaMon.mega && Object.values(dex.items).some((it: any) => it.megaStone && Object.keys(it.megaStone).some((k: string) => toID(k) === oppSpId || toID(k) === toID(dex.species[oppSpId]?.baseSpecies ?? '')));
   const oppAlive = view.opp.map((o: any, i: number) => ({ o, i })).filter((x: any) => !x.o.fainted);
   const top = result?.top ?? [];
+  const pend: number[] = view.pending ?? [];
+  const ourAlive = us.mons.filter((m: any) => m.hp > 0).length, oppFaintedN = view.opp.filter((o: any) => o.fainted).length;
+  const ended = ourAlive === 0 || oppFaintedN >= 3;
   // 相手の技のボタン：見えた技を先に、続いて推定で多い技（合わせて最大6つ）
   const oppMoveBtns = [...new Set([...(sum?.revealed ?? []).map(toID), ...(sum?.moves ?? []).map((x: any) => toID(x.name))])].slice(0, 6);
   const revealedSet = new Set((sum?.revealed ?? []).map(toID));
@@ -261,7 +264,23 @@ function renderBattle() {
       ${result.totalMs > result.budget + 50 ? `<p class="warn">合計が計算時間（${(result.budget / 1000).toFixed(0)}秒）を超えました。</p>` : ''}` : '<p class="muted">まだ計算していません。</p>'}
     </div>
   </section>
-  <section class="box turn"><h2>このターンに起きたこと</h2>
+  ${ended ? `<section class="box"><h2>対戦が終わりました（${ourAlive === 0 ? '負け' : '勝ち'}）</h2>
+    <p>${ourAlive === 0 ? 'こちらの3体がすべて倒れました。' : '相手の3体がすべて倒れました。'}記録を保存するか、保存せずに終えてください。</p>
+    <p><button id="b-end2" class="primary big">対戦を終える（記録を保存）</button> <button id="b-discard2" class="big">保存せずに終える</button></p></section>`
+  : pend.length ? `<section class="box turn"><h2>死に出し（倒れた体の交代先）</h2>
+    <p class="muted">おすすめ（上）は、出す体ごとの勝率です。出した体を押してください。</p>
+    ${pend.includes(0) ? `<h3>こちらが出す体</h3><div class="choices">${us.mons.map((m: any, i: number) => m.hp > 0 ? `<label class="btn big"><input type="radio" name="r-our" value="${i}"> ${esc(jn('species', m.set.species))}</label>` : '').join('')}</div>` : ''}
+    ${pend.includes(1) ? `<h3>相手が出した体</h3><div class="choices">${view.opp.map((o: any, i: number) => !o.fainted && i !== oaIdx ? `<label class="btn big"><input type="radio" name="r-opp" value="${i}"> ${esc(jn('species', doc!.setup.oppSpecies[i]))}</label>` : '').join('')}</div>` : ''}
+    <div id="r-result" hidden>
+      <h3>出てきた後のHP <span class="muted" id="r-predmsg"></span></h3>
+      <div class="hps">
+        ${pend.includes(1) ? `<div class="hp"><span id="r-oppname">相手</span><span><input id="r-opphp" class="big num" type="number" inputmode="numeric" min="0" max="100" value="100"> %</span></div>` : ''}
+        ${us.mons.map((m: any, i: number) => m.hp > 0 ? `<div class="hp"><span>${esc(jn('species', m.set.species))}</span><span><input class="r-ourhp big num" data-i="${i}" type="number" inputmode="numeric" min="0" max="${maxhp(m.set)}" value="${m.hp}"> /${maxhp(m.set)}</span></div>` : '').join('')}
+      </div>
+      ${pend.includes(1) ? `<details><summary>相手の特性・持ち物の発動（出たとき。あったときだけ）</summary><p>特性 <input id="r-oppab" list="dl-ab2" placeholder="なし"><datalist id="dl-ab2">${Object.values(ja.abilities).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist> 持ち物 <input id="r-oppitem" list="dl-items4" placeholder="なし"><datalist id="dl-items4">${Object.values(ja.items).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist></p></details>` : ''}
+    </div>
+    <p><button id="r-record" class="primary big">出して計算</button> <span class="warn" id="r-msg"></span></p></section>`
+  : `<section class="box turn"><h2>このターンに起きたこと</h2>
     <h3>① 相手の行動</h3>
     <div class="choices">${oppMoveBtns.map(m => `<label class="btn big"><input type="radio" name="t-opp" value="move ${esc(m)}"> ${esc(jn('moves', m))}${revealedSet.has(m) ? '' : '<small>（推定）</small>'}</label>`).join('')}
       ${oppAlive.filter((x: any) => x.i !== oaIdx).map((x: any) => `<label class="btn big"><input type="radio" name="t-opp" value="switch ${x.i}"> 交代→${esc(jn('species', doc!.setup.oppSpecies[x.i]))}</label>`).join('')}
@@ -275,27 +294,26 @@ function renderBattle() {
       <label class="btn big"><input type="radio" name="t-our" value="none"> 動けなかった</label></div>
     ${canMegaUs ? '<p><label class="btn"><input type="checkbox" id="t-ourmega"> メガシンカした</label></p>' : ''}
     <div id="t-result" hidden>
-    <h3>③ 結果 <span class="muted" id="t-predmsg">（予想を入れました。画面と違う所だけ直す）</span></h3>
+    <h3>③ 結果 <span class="muted" id="t-predmsg"></span></h3>
     <p id="row-first" hidden><strong>先に動いた</strong>：<label class="btn big"><input type="radio" name="t-first" value="us"> こちら</label><label class="btn big"><input type="radio" name="t-first" value="them"> 相手</label></p>
     <div class="hps">
-      <div class="hp"><span>相手 <span id="t-opphp-who">${esc(jn('species', doc!.setup.oppSpecies[oaIdx]))}</span></span><span><input id="t-opphp" class="big num" type="number" inputmode="numeric" min="0" max="100" value="${oa.hpPct}"> %</span></div>
-      ${[us.active, ...us.mons.map((_: any, i: number) => i).filter((i: number) => i !== us.active)].map((i: number) => { const m = us.mons[i]; return `<div class="hp${i === us.active ? '' : ' bench'}"><span>${esc(jn('species', m.set.species))}${i === us.active ? '' : '（控え）'}</span><span><input class="t-ourhp big num" data-i="${i}" type="number" inputmode="numeric" min="0" max="${maxhp(m.set)}" value="${m.hp}"> /${maxhp(m.set)}</span></div>`; }).join('')}
+      <div class="hp"><span>相手の場の体</span><select id="t-oppactive" class="big">${oppAlive.map((x: any) => `<option value="${x.i}" ${x.i === oaIdx ? 'selected' : ''}>${esc(jn('species', doc!.setup.oppSpecies[x.i]))}</option>`).join('')}</select><span><input id="t-opphp" class="big num" type="number" inputmode="numeric" min="0" max="100" value="${oa.hpPct}"> %</span></div>
+      <div class="hp" id="opp-other-wrap"></div>
+      <div class="hp"><span>こちらの場の体</span><select id="t-ouractive" class="big">${us.mons.map((m: any, i: number) => `<option value="${i}" ${i === us.active ? 'selected' : ''}>${esc(jn('species', m.set.species))}</option>`).join('')}</select></div>
+      ${[us.active, ...us.mons.map((_: any, i: number) => i).filter((i: number) => i !== us.active)].map((i: number) => { const m = us.mons[i]; return `<div class="hp"><span class="t-ourname" data-i="${i}">${esc(jn('species', m.set.species))}</span><span><input class="t-ourhp big num" data-i="${i}" type="number" inputmode="numeric" min="0" max="${maxhp(m.set)}" value="${m.hp}"> /${maxhp(m.set)}</span></div>`; }).join('')}
     </div>
-    <p id="row-ouractive" hidden>こちらが倒れた後に出した体：<select id="t-ouractive" class="big">${us.mons.map((m: any, i: number) => `<option value="${i}" ${i === us.active ? 'selected' : ''}>${esc(jn('species', m.set.species))}</option>`).join('')}</select></p>
-    <p id="row-oppactive" hidden>相手が倒れた後に出した体：<select id="t-oppactive" class="big">${oppAlive.map((x: any) => `<option value="${x.i}" ${x.i === oaIdx ? 'selected' : ''}>${esc(jn('species', doc!.setup.oppSpecies[x.i]))}</option>`).join('')}</select>
-      HP <input id="t-opphp2" class="big num" type="number" inputmode="numeric" min="0" max="100" value="100">%</p>
-    <details><summary>ほかに起きたこと（急所・持ち物や特性の発動・状態異常。あったときだけ）</summary>
+    <p>状態異常：こちらの場の体 <select id="t-ourstatus" class="big">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (ua.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      相手の場の体 <select id="t-oppstatus" class="big">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (oa.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></p>
+    <details><summary>ほかに起きたこと（急所・持ち物や特性の発動。あったときだけ）</summary>
     <p><strong>急所</strong>：<label class="btn"><input type="checkbox" id="t-critopp"> こちらの攻撃が急所</label> <label class="btn"><input type="checkbox" id="t-critus"> 相手の攻撃が急所</label>
       <span class="muted">（入れなければ「分からない」として計算します）</span></p>
     <p><strong>相手の持ち物の発動</strong> <input id="t-oppitem" list="dl-items2" placeholder="なし">
        <datalist id="dl-items2">${(sum?.items ?? []).map((x: any) => `<option value="${esc(jn('items', x.name))}">`).join('')}${Object.values(ja.items).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist>
        <strong>相手の特性の発動</strong> <input id="t-oppab" list="dl-ab" placeholder="なし"><datalist id="dl-ab">${Object.values(ja.abilities).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist></p>
-    <p>こちらの場の体の状態異常：<select id="t-ourstatus">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (ua.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select>
-      相手の場の体の状態異常：<select id="t-oppstatus">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (oa.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></p>
     </details>
     </div>
     <p><button id="t-record" class="primary big">記録して計算</button> <span class="warn" id="t-msg"></span></p>
-  </section>
+  </section>`}
   <section class="box"><h2>相手の型の推定（${esc(jn('species', doc!.setup.oppSpecies[oaIdx]))}）</h2>
     ${sum ? `<p>持ち物：${sum.items.map((x: any) => `${esc(jn('items', x.name))} ${Math.round(x.p * 100)}%`).join('、')}</p>
     <p>特性：${sum.abilities.map((x: any) => `${esc(jn('abilities', x.name))} ${Math.round(x.p * 100)}%`).join('、')}</p>
@@ -348,7 +366,6 @@ function readVisible(): VisibleState {
 function bindBattle() {
   document.getElementById('b-search')!.onclick = () => runSearch();
   (document.getElementById('b-time') as HTMLInputElement).onchange = e => store(KEY_TIME, Math.max(2, Math.min(40, Number((e.target as HTMLInputElement).value))) * 1000);
-  document.getElementById('t-record')!.onclick = recordTurn;
   document.getElementById('v-apply')!.onclick = async () => {
     const visible = readVisible();
     if (doc!.turns.length) doc!.turns[doc!.turns.length - 1].visible = visible;
@@ -370,38 +387,79 @@ function bindBattle() {
     doc = null; view = null; result = null; renderSetup();
     app.insertAdjacentHTML('afterbegin', '<p>対戦の記録を保存せずに終えました。</p>');
   };
-  // 場面に合わせて出す欄：先に動いた側（両方が技を出したとき）、倒れた後に出した体（HP を0にしたとき）
   const radio = (name: string) => (document.querySelector(`input[name="${name}"]:checked`) as HTMLInputElement | null)?.value ?? '';
+  if (document.getElementById('t-record')) bindTurn(radio);
+  if (document.getElementById('r-record')) bindReplace(radio);
+  const end2 = document.getElementById('b-end2'), discard2 = document.getElementById('b-discard2');
+  if (end2) end2.onclick = () => (document.getElementById('b-end') as HTMLButtonElement).click();
+  if (discard2) discard2.onclick = () => (document.getElementById('b-discard') as HTMLButtonElement).click();
+  document.getElementById('b-end')!.onclick = async () => {
+    if (!confirm('対戦を終えて、記録を保存しますか？（この画面の記録は消え、準備の画面に戻ります）')) return;
+    const usNow = ourSide(), ourAliveNow = usNow.mons.filter((m: any) => m.hp > 0).length, oppDown = view.opp.filter((o: any) => o.fainted).length;
+    const outcome = ourAliveNow === 0 ? '負け' : oppDown >= 3 ? '勝ち' : (prompt('結果を入れてください（勝ち／負け）', '') ?? '');
+    const logDoc = { ...doc, endedAt: new Date().toISOString(), outcome };
+    const logs = load<any[]>('champions.logs', []); logs.push(logDoc); store('champions.logs', logs);
+    const token = (() => { try { return localStorage.getItem(KEY_TOKEN) ?? ''; } catch { return ''; } })();
+    let saved = 'このブラウザに保存しました。';
+    if (token) {
+      try { await putFile(token, `data/logs/${doc!.id}.json`, JSON.stringify(logDoc, null, 1) + '\n', `対戦の記録：${doc!.partyName}`); saved = 'このブラウザとリポジトリに保存しました。'; }
+      catch (e: any) { saved = `このブラウザには保存しました。リポジトリへの書き込みは失敗しました：${e.message}`; }
+    }
+    try { localStorage.removeItem(KEY_BATTLE); } catch { /* */ }
+    doc = null; view = null; result = null; renderSetup();
+    app.insertAdjacentHTML('afterbegin', `<p>${esc(saved)}</p>`);
+  };
+}
+
+/** ターンの入力の動き：行動に合わせて場の体をそろえ、結果を予想して入れる。手で直した欄は上書きしない。 */
+function bindTurn(radio: (n: string) => string) {
   const us = ourSide();
-  const updateRows = () => {
+  const startOpp = oppActiveIdx();
+  const selOur = document.getElementById('t-ouractive') as HTMLSelectElement, selOpp = document.getElementById('t-oppactive') as HTMLSelectElement;
+  const oppHp = document.getElementById('t-opphp') as HTMLInputElement;
+  const hpOf = (i: number) => Number((document.querySelector(`.t-ourhp[data-i="${i}"]`) as HTMLInputElement).value);
+  let pred: any = null;
+  const otherVals = new Map<number, { v: string; touched: boolean }>();
+  // 相手の体で、ターンの後の場の体ではないが、そのターンに場にいた体（ターンの始めの場の体・交代先）の HP の欄
+  const renderOppOthers = () => {
+    const wrap = document.getElementById('opp-other-wrap')!;
+    wrap.querySelectorAll<HTMLInputElement>('input.t-oppother').forEach(x => otherVals.set(Number(x.dataset.i), { v: x.value, touched: !!x.dataset.touched }));
+    const after = Number(selOpp.value), opp = radio('t-opp');
+    const ids: number[] = [];
+    if (startOpp !== after) ids.push(startOpp);
+    if (opp.startsWith('switch')) { const to = Number(opp.split(' ')[1]); if (to !== after && !ids.includes(to)) ids.push(to); }
+    wrap.innerHTML = ids.map(i => { const o = otherVals.get(i); const v = o?.v ?? String(pred?.oppHps?.[i] ?? view.opp[i].hpPct); return `<span>${esc(jn('species', doc!.setup.oppSpecies[i]))}（場から下がった。倒れたら0）</span><span><input class="t-oppother big num" data-i="${i}" type="number" inputmode="numeric" min="0" max="100" value="${esc(v)}"${o?.touched ? ' data-touched="1"' : ''}> %</span>`; }).join('');
+    wrap.querySelectorAll<HTMLInputElement>('input.t-oppother').forEach(x => x.addEventListener('input', () => { x.dataset.touched = '1'; }));
+  };
+  // こちらの HP の名札：（場）（控え）（倒れた）
+  const labels = () => {
+    const after = Number(selOur.value);
+    document.querySelectorAll<HTMLElement>('.t-ourname').forEach(el => { const i = Number(el.dataset.i); el.textContent = jn('species', us.mons[i].set.species) + (hpOf(i) <= 0 ? '（倒れた）' : i === after ? '（場）' : '（控え）'); });
+  };
+  const update = () => {
     const our = radio('t-our'), opp = radio('t-opp');
     (document.getElementById('row-first') as HTMLElement).hidden = !(our.startsWith('move') && (opp.startsWith('move') || opp === 'other'));
-    // こちら：交代を選んだら場の体は交代先。その体の HP を0にしたら、倒れた後に出した体を選ぶ
-    const afterIdx = our.startsWith('switch') ? Number(our.split(' ')[1]) : us.active;
-    const hpOf = (i: number) => Number((document.querySelector(`.t-ourhp[data-i="${i}"]`) as HTMLInputElement).value);
-    const ourFainted = hpOf(afterIdx) <= 0;
-    const selOur = document.getElementById('t-ouractive') as HTMLSelectElement;
-    (document.getElementById('row-ouractive') as HTMLElement).hidden = !ourFainted;
-    if (!ourFainted) selOur.value = String(afterIdx);
-    else if (Number(selOur.value) === afterIdx || hpOf(Number(selOur.value)) <= 0) { const alive = us.mons.findIndex((m: any, i: number) => i !== afterIdx && hpOf(i) > 0); if (alive >= 0) selOur.value = String(alive); }
-    // 相手：交代を選んだら HP は交代先の%。HP を0にしたら、倒れた後に出した体とその%を入れる
-    const selOpp = document.getElementById('t-oppactive') as HTMLSelectElement;
-    const oppTo = opp.startsWith('switch') ? Number(opp.split(' ')[1]) : oppActiveIdx();
-    const who = document.getElementById('t-opphp-who')!;
-    const prevWho = who.dataset.to;
-    who.textContent = jn('species', doc!.setup.oppSpecies[oppTo]) + (oppTo !== oppActiveIdx() ? '（交代後）' : '');
-    if (prevWho !== String(oppTo)) { (document.getElementById('t-opphp') as HTMLInputElement).value = String(view.opp[oppTo].hpPct); who.dataset.to = String(oppTo); }
-    const oppFainted = Number((document.getElementById('t-opphp') as HTMLInputElement).value) <= 0;
-    (document.getElementById('row-oppactive') as HTMLElement).hidden = !oppFainted;
-    if (!oppFainted) selOpp.value = String(oppTo);
-    else if (Number(selOpp.value) === oppTo) { const o = [...selOpp.options].find(x => Number(x.value) !== oppTo); if (o) selOpp.value = o.value; }
+    (document.getElementById('row-othermove') as HTMLElement).hidden = opp !== 'other';
+    renderOppOthers(); labels();
   };
-  document.querySelectorAll<HTMLInputElement>('input[name="t-our"], input[name="t-opp"], .t-ourhp, #t-opphp').forEach(x => { x.addEventListener('change', updateRows); x.addEventListener('input', updateRows); });
-  updateRows();
-  // 手で直した欄には印をつけ、予想で上書きしない
-  document.querySelectorAll<HTMLInputElement>('.t-ourhp, #t-opphp, #t-opphp2, input[name="t-first"]').forEach(x => x.addEventListener('input', () => { x.dataset.touched = '1'; if (x.name === 't-first') document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(y => { y.dataset.touched = '1'; }); }));
-  document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(x => x.addEventListener('change', () => document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(y => { y.dataset.touched = '1'; })));
-  // 両方の行動が決まったら、結果を予想して欄に入れる
+  // 行動を選んだら、ターンの後の場の体を交代先にそろえる（手で選び直していなければ）
+  const alignActives = () => {
+    const our = radio('t-our'), opp = radio('t-opp');
+    if (!selOur.dataset.touched) selOur.value = String(our.startsWith('switch') ? Number(our.split(' ')[1]) : us.active);
+    if (!selOpp.dataset.touched) {
+      const to = opp.startsWith('switch') ? Number(opp.split(' ')[1]) : startOpp;
+      selOpp.value = String(to);
+      if (!oppHp.dataset.touched) oppHp.value = String(view.opp[to].hpPct);
+    }
+  };
+  const touch = (el: HTMLElement) => { el.dataset.touched = '1'; };
+  document.querySelectorAll<HTMLInputElement>('.t-ourhp').forEach(x => x.addEventListener('input', () => { touch(x); update(); }));
+  oppHp.addEventListener('input', () => touch(oppHp));
+  selOur.addEventListener('change', () => { touch(selOur); update(); });
+  selOpp.addEventListener('change', () => { touch(selOpp); const i = Number(selOpp.value); if (!oppHp.dataset.touched) oppHp.value = String(pred?.oppHps?.[i] ?? view.opp[i].hpPct); update(); });
+  for (const id of ['t-ourstatus', 't-oppstatus']) document.getElementById(id)!.addEventListener('change', e => touch(e.target as HTMLElement));
+  document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(x => x.addEventListener('change', () => document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(touch)));
+
   let predGen = 0;
   const actionsNow = (): { ours: TurnInput['ours']; opp: TurnInput['opp'] } | null => {
     const our = radio('t-our'), opp = radio('t-opp');
@@ -419,47 +477,81 @@ function bindBattle() {
     return { ours, opp: oppAct };
   };
   const predictNow = async () => {
-    (document.getElementById('row-othermove') as HTMLElement).hidden = radio('t-opp') !== 'other';
+    alignActives(); update();
     const acts = actionsNow();
     if (!acts) return;
     const gen = ++predGen;
-    const box = document.getElementById('t-result') as HTMLElement;
-    box.hidden = false;
+    (document.getElementById('t-result') as HTMLElement).hidden = false;
     const msg = document.getElementById('t-predmsg')!;
     msg.textContent = '（予想しています…）';
-    let pred: any = null;
-    try { pred = (await ask({ type: 'predict', input: acts })).pred; } catch { pred = null; }
+    let p: any = null;
+    try { p = (await ask({ type: 'predict', input: acts })).pred; } catch { p = null; }
     if (gen !== predGen || !document.getElementById('t-result')) return;
-    if (!pred) { msg.textContent = '（予想できませんでした。画面の数字を入れてください）'; updateRows(); return; }
-    const setIf = (el: HTMLInputElement | null, v: number) => { if (el && !el.dataset.touched) el.value = String(v); };
-    pred.ourHps.forEach((h: number, i: number) => setIf(document.querySelector(`.t-ourhp[data-i="${i}"]`), h));
-    updateRows();
-    // 相手：交代先や、倒れた後に出した体なら、その体の%
-    const oppTo = acts.opp.kind === 'switch' ? acts.opp.to : oppActiveIdx();
-    if (pred.oppActive === oppTo) setIf(document.getElementById('t-opphp') as HTMLInputElement, pred.oppHpPct);
-    else { setIf(document.getElementById('t-opphp') as HTMLInputElement, 0); setIf(document.getElementById('t-opphp2') as HTMLInputElement, pred.oppHpPct); }
-    updateRows();
-    if (pred.oppActive !== oppTo) { const sel = document.getElementById('t-oppactive') as HTMLSelectElement; if ([...sel.options].some(o => Number(o.value) === pred.oppActive)) sel.value = String(pred.oppActive); }
-    if (pred.first) { const r = document.querySelector(`input[name="t-first"][value="${pred.first}"]`) as HTMLInputElement | null; if (r && !r.dataset.touched) r.checked = true; }
-    msg.textContent = `（予想を入れました。画面と違う所だけ直す。相手のHPの予想の幅 ${pred.oppHpRange[0]}〜${pred.oppHpRange[1]}%）`;
+    if (!p) { msg.textContent = '（予想できませんでした。画面の数字を入れてください）'; return; }
+    pred = p;
+    const setIf = (el: HTMLInputElement | HTMLSelectElement | null, v: string | number) => { if (el && !el.dataset.touched) el.value = String(v); };
+    p.ourHps.forEach((h: number, i: number) => setIf(document.querySelector(`.t-ourhp[data-i="${i}"]`), h));
+    // こちら：出ていた体（交代先）が倒れる予想なら、その体のまま（死に出しの画面で交代先を選ぶ）
+    const ourExp = acts.ours.kind === 'switch' ? acts.ours.to : us.active;
+    setIf(selOur, p.ourHps[ourExp] <= 0 ? ourExp : p.ourActive);
+    // 相手：出ていた体が倒れて、こちらも倒れる・3体目なら、その体のまま。そうでなければ予想した場の体
+    const oppExp = acts.opp.kind === 'switch' ? acts.opp.to : startOpp;
+    const oppDown = (p.oppHps?.[oppExp] ?? p.oppHpPct) <= 0;
+    const stay = oppDown && (p.ourHps[ourExp] <= 0 || view.opp.filter((o: any) => o.fainted).length + 1 >= 3);
+    setIf(selOpp, stay ? oppExp : p.oppActive);
+    setIf(oppHp, p.oppHps?.[Number(selOpp.value)] ?? p.oppHpPct);
+    otherVals.clear();
+    setIf(document.getElementById('t-ourstatus') as HTMLSelectElement, p.ourStatus || '');
+    setIf(document.getElementById('t-oppstatus') as HTMLSelectElement, p.oppStatus || '');
+    if (p.first) { const r = document.querySelector(`input[name="t-first"][value="${p.first}"]`) as HTMLInputElement | null; if (r && !r.dataset.touched) r.checked = true; }
+    update();
+    msg.textContent = `（予想を入れました。画面と違う所だけ直す。相手のHPの予想の幅 ${p.oppHpRange[0]}〜${p.oppHpRange[1]}%）`;
   };
   document.querySelectorAll<HTMLInputElement>('input[name="t-our"], input[name="t-opp"], #t-ourmega, #t-oppmega').forEach(x => x.addEventListener('change', predictNow));
   (document.getElementById('t-oppmove') as HTMLInputElement).addEventListener('change', predictNow);
-  for (const id of ['t-ourstatus', 't-oppstatus']) (document.getElementById(id) as HTMLSelectElement).addEventListener('change', e => { (e.target as HTMLElement).dataset.touched = '1'; });
-  document.getElementById('b-end')!.onclick = async () => {
-    if (!confirm('対戦を終えて、記録を保存しますか？（この画面の記録は消え、準備の画面に戻ります）')) return;
-    const outcome = prompt('結果を入れてください（勝ち／負け）', '') ?? '';
-    const logDoc = { ...doc, endedAt: new Date().toISOString(), outcome };
-    const logs = load<any[]>('champions.logs', []); logs.push(logDoc); store('champions.logs', logs);
-    const token = (() => { try { return localStorage.getItem(KEY_TOKEN) ?? ''; } catch { return ''; } })();
-    let saved = 'このブラウザに保存しました。';
-    if (token) {
-      try { await putFile(token, `data/logs/${doc!.id}.json`, JSON.stringify(logDoc, null, 1) + '\n', `対戦の記録：${doc!.partyName}`); saved = 'このブラウザとリポジトリに保存しました。'; }
-      catch (e: any) { saved = `このブラウザには保存しました。リポジトリへの書き込みは失敗しました：${e.message}`; }
-    }
-    try { localStorage.removeItem(KEY_BATTLE); } catch { /* */ }
-    doc = null; view = null; result = null; renderSetup();
-    app.insertAdjacentHTML('afterbegin', `<p>${esc(saved)}</p>`);
+  document.getElementById('t-record')!.onclick = recordTurn;
+  update();
+}
+
+/** 死に出しの動き：出した体を押すと、出てきた後の HP を予想して入れる。「出して計算」で記録する。 */
+function bindReplace(radio: (n: string) => string) {
+  const us = ourSide();
+  const pend: number[] = view.pending ?? [];
+  let gen = 0;
+  const chosen = () => ({ ourTo: pend.includes(0) && radio('r-our') !== '' ? Number(radio('r-our')) : undefined, oppTo: pend.includes(1) && radio('r-opp') !== '' ? Number(radio('r-opp')) : undefined });
+  const ready = () => { const c = chosen(); return (!pend.includes(0) || c.ourTo !== undefined) && (!pend.includes(1) || c.oppTo !== undefined); };
+  document.querySelectorAll<HTMLInputElement>('.r-ourhp, #r-opphp').forEach(x => x.addEventListener('input', () => { x.dataset.touched = '1'; }));
+  const preview = async () => {
+    if (!ready()) return;
+    const g = ++gen;
+    const c = chosen();
+    (document.getElementById('r-result') as HTMLElement).hidden = false;
+    const name = document.getElementById('r-oppname'); if (name && c.oppTo !== undefined) name.textContent = `相手 ${jn('species', doc!.setup.oppSpecies[c.oppTo])}`;
+    const msg = document.getElementById('r-predmsg')!; msg.textContent = '（予想しています…）';
+    let p: any = null;
+    try { p = (await ask({ type: 'replacePreview', input: c })).pred; } catch { p = null; }
+    if (g !== gen || !document.getElementById('r-result')) return;
+    if (!p) { msg.textContent = '（予想できませんでした。画面の数字を入れてください）'; return; }
+    document.querySelectorAll<HTMLInputElement>('.r-ourhp').forEach(x => { if (!x.dataset.touched) x.value = String(p.ourHps[Number(x.dataset.i)]); });
+    const oh = document.getElementById('r-opphp') as HTMLInputElement | null; if (oh && !oh.dataset.touched) oh.value = String(p.oppHpPct);
+    msg.textContent = '（ステルスロック等を含めた予想を入れました。画面と違う所だけ直す）';
+  };
+  document.querySelectorAll<HTMLInputElement>('input[name="r-our"], input[name="r-opp"]').forEach(x => x.addEventListener('change', preview));
+  document.getElementById('r-record')!.onclick = async () => {
+    const msgEl = document.getElementById('r-msg')!;
+    if (!ready()) { msgEl.textContent = pend.includes(0) && chosen().ourTo === undefined ? 'こちらが出す体を選んでください。' : '相手が出した体を選んでください。'; return; }
+    const c = chosen();
+    const ourHps = us.mons.map((m: any, i: number) => { const el = document.querySelector(`.r-ourhp[data-i="${i}"]`) as HTMLInputElement | null; return el ? Number(el.value) : m.hp; });
+    const abText = (document.getElementById('r-oppab') as HTMLInputElement | null)?.value ?? '', itemText = (document.getElementById('r-oppitem') as HTMLInputElement | null)?.value ?? '';
+    const input: ReplaceInput = { ...c, ourHps, oppHpPct: c.oppTo !== undefined ? Number((document.getElementById('r-opphp') as HTMLInputElement).value) : undefined, oppAbility: abText ? resolve('abilities', abText) || undefined : undefined, oppItem: itemText ? resolve('items', itemText) || undefined : undefined };
+    doc!.turns.push({ replace: input } as any);
+    store(KEY_BATTLE, doc);
+    const t0 = performance.now();
+    result = null; searching = true;
+    (document.getElementById('result') as HTMLElement).innerHTML = '<p>記録して計算中…</p>';
+    try { view = (await ask({ type: 'replace', input })).view; } finally { searching = false; }
+    renderBattle();
+    runSearch(t0);
   };
 }
 
@@ -488,16 +580,16 @@ async function recordTurn() {
   // 画面の並び（場の体が先頭）ではなく、欄の体の番号（data-i）の順に読む
   const ourHps: number[] = [];
   document.querySelectorAll<HTMLInputElement>('.t-ourhp').forEach(x => { ourHps[Number(x.dataset.i)] = Number(x.value); });
-  // 場の体は、交代と倒れた後の選び（updateRows が t-ouractive / t-oppactive に入れている）から決まる
+  // ターンの後の場の体（両方）と HP。こちらの場の体の HP が0なら、交代先はまだ（死に出しの画面で選ぶ）
   const ourActive = Number((document.getElementById('t-ouractive') as HTMLSelectElement).value);
-  if (ourHps[ourActive] <= 0 && ourHps.some(h => h > 0)) { msgEl.textContent = '倒れた後に出した体を選んでください。'; return; }
-  const oppFainted = Number((document.getElementById('t-opphp') as HTMLInputElement).value) <= 0;
   const oppActive = Number((document.getElementById('t-oppactive') as HTMLSelectElement).value);
-  const oppHpPct = oppFainted && oppActive !== (oppAct.kind === 'switch' ? oppAct.to : oppActiveIdx()) ? Number((document.getElementById('t-opphp2') as HTMLInputElement).value) : Number((document.getElementById('t-opphp') as HTMLInputElement).value);
-  // 状態異常の欄：触っていなければ、ターンの後の場の体の今の状態異常（交代しても、出てきた体のもの）。触っていれば、その値
-  const statusOf = (id: string, cur: string) => { const el = document.getElementById(id) as HTMLSelectElement; return (el.dataset.touched ? el.value : cur) as StatusID; };
-  const ourStatus = statusOf('t-ourstatus', ourSide().mons[ourActive].status || '');
-  const oppStatus = statusOf('t-oppstatus', view.opp[oppActive].status || '');
+  const oppHpPct = Number((document.getElementById('t-opphp') as HTMLInputElement).value);
+  const oppHps: Record<number, number> = {};
+  document.querySelectorAll<HTMLInputElement>('input.t-oppother').forEach(x => { oppHps[Number(x.dataset.i)] = Number(x.value); });
+  const oppDownAfter = view.opp.filter((o: any, i: number) => o.fainted || (oppHps[i] !== undefined && oppHps[i] <= 0) || (i === oppActive && oppHpPct <= 0)).length;
+  if (oppHpPct <= 0 && ourHps[ourActive] > 0 && oppDownAfter < 3) { msgEl.textContent = '相手の場の体が倒れたときは、相手が出した体を「相手の場の体」で選び、倒れた体の HP は0にしてください。'; return; }
+  const ourStatus = (document.getElementById('t-ourstatus') as HTMLSelectElement).value as StatusID;
+  const oppStatus = (document.getElementById('t-oppstatus') as HTMLSelectElement).value as StatusID;
   const critOpp = (document.getElementById('t-critopp') as HTMLInputElement).checked, critUs = (document.getElementById('t-critus') as HTMLInputElement).checked;
   const input: TurnInput = {
     ours, opp: oppAct, first: ours.kind === 'move' && oppAct.kind === 'move' ? first : undefined,
@@ -505,7 +597,7 @@ async function recordTurn() {
     critOnOpp: critOpp ? true : undefined, critOnUs: critUs ? true : undefined,
     oppItem: oppItem || undefined, oppAbility: oppAbility || undefined,
     ourMega: !!(document.getElementById('t-ourmega') as HTMLInputElement | null)?.checked, oppMega: !!(document.getElementById('t-oppmega') as HTMLInputElement | null)?.checked,
-    after: { ourActive, ourHp: ourHps[ourActive], ourStatus, oppActive, oppHpPct, oppStatus, ourHps },
+    after: { ourActive, ourHp: ourHps[ourActive], ourStatus, oppActive, oppHpPct, oppStatus, ourHps, oppHps: Object.keys(oppHps).length ? oppHps : undefined },
   };
   doc!.turns.push({ input });
   store(KEY_BATTLE, doc);
@@ -522,6 +614,8 @@ async function recordTurn() {
 /** t0 から数えて、計算時間（既定10秒）の中に収める。探索の後のまとめと表示の分として、少し残して打ち切る。 */
 async function runSearch(t0 = performance.now()) {
   if (!view) return;
+  // 決着していれば探索しない
+  if (!view.pos.sides[0].mons.some((m: any) => m.hp > 0) || view.opp.filter((o: any) => o.fainted).length >= 3) { result = null; searching = false; renderBattle(); return; }
   searching = true; renderBattle();
   try {
     const budget = load<number>(KEY_TIME, 10000);

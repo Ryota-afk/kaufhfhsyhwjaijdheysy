@@ -70,6 +70,16 @@ export function sideTurnInput(dex: any, b: any, v: SideView, lines: string[], mi
     ourMega: lines.some(l => l.startsWith(`|-mega|${me}a`)), oppMega: lines.some(l => l.startsWith(`|-mega|${them}a`)),
     after: { ourActive, ourHp: ma.hp, ourStatus: (ma.status || '') as StatusID, oppActive, oppHpPct: shownPercent(fa.hp, fa.maxhp), oppStatus: (fa.status || '') as StatusID, ourHps },
   };
+  // そのターンに場にいた相手の体のうち、ターンの後の場の体以外（交代・とんぼがえり・ドラゴンテール・にげごし・倒れた等）の HP%：画面で見えていた値
+  const onField = new Set<any>([foeActiveBefore]);
+  for (const l of lines) { const m = new RegExp(`^\\|(?:switch|drag|replace)\\|${them}a: `).exec(l); if (m) { const p = foeSide.active[0] && foeSide.pokemon.find((q: any) => l.includes(`|${q.species.name},`) || l.includes(`|${q.baseSpecies.name},`) || l.split('|')[3]?.startsWith(q.species.name)); if (p) onField.add(p); } }
+  const others: Record<number, number> = {};
+  for (const p of onField) {
+    if (!p || p === fa) continue;
+    const bi = v.foeSpecies.findIndex(n => dex.species.get(n).baseSpecies === p.baseSpecies.baseSpecies);
+    if (bi >= 0 && bi !== oppActive) others[bi] = shownPercent(p.hp, p.maxhp);
+  }
+  if (Object.keys(others).length) input.after.oppHps = others;
   const boostsOf = (p: any): Record<string, number> => Object.fromEntries(Object.entries(p.boosts as Record<string, number>).filter(([, x]) => x));
   const condOf = (side: any) => { const c: any = {}; for (const k of ['stealthrock', 'spikes', 'toxicspikes', 'stickyweb', 'reflect', 'lightscreen', 'auroraveil', 'tailwind']) if (side.sideConditions[k]) c[k] = side.sideConditions[k].layers ?? 1; return c; };
   const volOf = (p: any) => ({ leechseed: !!p.volatiles.leechseed, substitute: !!p.volatiles.substitute });

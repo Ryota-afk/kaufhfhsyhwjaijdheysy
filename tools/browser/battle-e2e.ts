@@ -143,21 +143,20 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
     const cur = await page.$eval(`.t-ourhp[data-i="${k}"]`, (x: any) => x.value);
     if (String(hp) !== cur) await fill(`.t-ourhp[data-i="${k}"]`, String(hp));
   }
-  // こちらが倒れて別の体を出したときだけ、出した体を選ぶ欄が出る
-  if (!(await page.$eval('#row-ouractive', (x: any) => x.hidden)) && String(ourActive) !== await page.$eval('#t-ouractive', (x: any) => x.value)) await select('#t-ouractive', String(ourActive));
-  // 相手：画面が場の体とみなしている体（交代先か、もとの場の体）と、本当の場の体が違えば、倒れて出してきた
+  // ターンの後の場の体（両方）は、予想と違うときだけ選び直す
+  if (String(ourActive) !== await page.$eval('#t-ouractive', (x: any) => x.value)) await select('#t-ouractive', String(ourActive));
   const pct = shownPercent(s1.hp, s1.maxhp);
-  const uiOppTo = a1?.kind === 'switch' ? oppIdx[a1.to] : team.mons.findIndex((m: any) => dex.species.get(m.species).baseSpecies === oppActiveBefore.baseSpecies.baseSpecies);
-  if (oppActive6 !== uiOppTo) {
-    await fill('#t-opphp', '0');
-    if (String(oppActive6) !== await page.$eval('#t-oppactive', (x: any) => x.value)) await select('#t-oppactive', String(oppActive6));
-    if (String(pct) !== await page.$eval('#t-opphp2', (x: any) => x.value)) await fill('#t-opphp2', String(pct));
-  } else if (String(pct) !== await page.$eval('#t-opphp', (x: any) => x.value)) await fill('#t-opphp', String(pct));
-  // 状態異常：画面の既定（ターンの後の場の体の、前のターンまでの状態異常）と違うときだけ、開いて直す
-  const defOur = await page.evaluate((i: number) => (window as any).__battle.view.pos.sides[0].mons[i].status || '', ourActive);
-  if ((s0.status || '') !== defOur) { await openDetails(); await select('#t-ourstatus', s0.status || ''); }
-  const defOpp = await page.evaluate((i: number) => (window as any).__battle.view.opp[i].status || '', oppActive6);
-  if ((s1.status || '') !== defOpp) { await openDetails(); await select('#t-oppstatus', s1.status || ''); }
+  if (String(oppActive6) !== await page.$eval('#t-oppactive', (x: any) => x.value)) await select('#t-oppactive', String(oppActive6));
+  if (String(pct) !== await page.$eval('#t-opphp', (x: any) => x.value)) await fill('#t-opphp', String(pct));
+  // 場から下がった相手の体の HP（倒れたら0）
+  for (const el of await page.$$('input.t-oppother')) {
+    const i = Number(await el.getAttribute('data-i'));
+    const p = b.sides[1].pokemon.find((q: any) => team.mons.findIndex((m: any) => dex.species.get(m.species).baseSpecies === q.baseSpecies.baseSpecies) === i);
+    if (p && String(shownPercent(p.hp, p.maxhp)) !== await el.inputValue()) await fill(`input.t-oppother[data-i="${i}"]`, String(shownPercent(p.hp, p.maxhp)));
+  }
+  // 状態異常（予想が入っている。違うときだけ直す）
+  if ((s0.status || '') !== await page.$eval('#t-ourstatus', (x: any) => x.value)) await select('#t-ourstatus', s0.status || '');
+  if ((s1.status || '') !== await page.$eval('#t-oppstatus', (x: any) => x.value)) await select('#t-oppstatus', s1.status || '');
   const turnOps = ops;
   const fixes = ops - opsBeforeFix;
   await page.click('#t-record');

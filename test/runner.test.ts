@@ -42,3 +42,22 @@ test('メガシンカ済みの盤面：姿が変わったときの特性（ひ�
   const r2 = new ShowdownRunner(pos2, 1);
   assert.equal(r2.battle.sides[0].active[0].boosts.atk, 0);
 });
+
+test('死に出しの場面：場の体が倒れていて控えがあれば、交代先を選ぶ要求になり、選ぶと次のターンの技の要求になる', () => {
+  const mon = (species: string, item: string, ability: string, moves: string[], hp = 150) => ({ set: { species, item, ability, nature: 'Hardy', evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, moves }, hp, status: '' as const });
+  const pos: any = { sides: [
+    { mons: [mon('Kleavor', 'focussash', 'sharpness', ['stoneaxe'], 0), mon('Salamence', 'leftovers', 'intimidate', ['dragonclaw']), mon('Garchomp', 'lifeorb', 'roughskin', ['earthquake'])], active: 0, cond: { stealthrock: true } },
+    { mons: [mon('Hippowdon', 'leftovers', 'sandstream', ['earthquake'])], active: 0 },
+  ], field: {} };
+  const r = new ShowdownRunner(pos, 1);
+  const l0 = r.legalActions(0), l1 = r.legalActions(1);
+  assert.deepEqual(l0, [{ kind: 'switch', to: 1 }, { kind: 'switch', to: 2 }]);
+  assert.equal(l1.length, 0);
+  r.play({ kind: 'switch', to: 1 }, null);
+  const p = r.toPosition();
+  assert.equal(p.sides[0].active, 1);
+  // ステルスロック（ドラゴン・ひこうに1/4……ボーマンダはひこうで2倍：最大HPの1/4）を受けている
+  const sal = p.sides[0].mons[1];
+  assert.ok(sal.hp < 171, `HP ${sal.hp}`);
+  assert.ok(r.legalActions(0).some(a => a.kind === 'move'));
+});
