@@ -117,26 +117,35 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
   if (lines.some(l => l.startsWith('|-mega|p2a'))) await click('#t-oppmega');
   const ourMovedMove = a0?.kind === 'move' && ourMoved, oppMoved = a1?.kind !== 'switch' && !!oppMoveLine;
   if (ourMovedMove && oppMoved && moveLines.length >= 2) await click(`input[name="t-first"][value="${moveLines[0].startsWith('|move|p2a') ? 'them' : 'us'}"]`);
-  if (lines.some(l => l.startsWith('|-crit|p2a'))) await click('#t-critopp');
-  if (lines.some(l => l.startsWith('|-crit|p1a'))) await click('#t-critus');
+  // 「ほかに起きたこと」は、要るときだけ開く（開くのも1回の操作）
+  let detailsOpen = false;
+  const openDetails = async () => { if (!detailsOpen) { await click('details > summary'); detailsOpen = true; } };
+  if (lines.some(l => l.startsWith('|-crit|p2a'))) { await openDetails(); await click('#t-critopp'); }
+  if (lines.some(l => l.startsWith('|-crit|p1a'))) { await openDetails(); await click('#t-critus'); }
   // ターンの後
   const s0 = b.sides[0].active[0], s1 = b.sides[1].active[0];
   const ourActive = ourIdx.findIndex(i => dex.species.get(party[i].species).baseSpecies === s0.baseSpecies.baseSpecies);
   const oppActive6 = team.mons.findIndex((m: any) => dex.species.get(m.species).baseSpecies === s1.baseSpecies.baseSpecies);
-  const curOurActive = await page.$eval('#t-ouractive', (x: any) => x.value);
-  if (String(ourActive) !== curOurActive) await select('#t-ouractive', String(ourActive));
   for (const [k, i] of ourIdx.entries()) {
     const hp = b.sides[0].pokemon.find((p: any) => p.baseSpecies.baseSpecies === dex.species.get(party[i].species).baseSpecies).hp;
     const cur = await page.$eval(`.t-ourhp[data-i="${k}"]`, (x: any) => x.value);
     if (String(hp) !== cur) await fill(`.t-ourhp[data-i="${k}"]`, String(hp));
   }
-  const curOurSt = await page.$eval('#t-ourstatus', (x: any) => x.value);
-  if ((s0.status || '') !== curOurSt) await select('#t-ourstatus', s0.status || '');
-  const curOpp = await page.$eval('#t-oppactive', (x: any) => x.value);
-  if (String(oppActive6) !== curOpp) await select('#t-oppactive', String(oppActive6));
+  // こちらが倒れて別の体を出したときだけ、出した体を選ぶ欄が出る
+  if (!(await page.$eval('#row-ouractive', (x: any) => x.hidden)) && String(ourActive) !== await page.$eval('#t-ouractive', (x: any) => x.value)) await select('#t-ouractive', String(ourActive));
+  // 相手：画面が場の体とみなしている体（交代先か、もとの場の体）と、本当の場の体が違えば、倒れて出してきた
   const pct = shownPercent(s1.hp, s1.maxhp);
-  if (String(pct) !== await page.$eval('#t-opphp', (x: any) => x.value)) await fill('#t-opphp', String(pct));
-  if ((s1.status || '') !== await page.$eval('#t-oppstatus', (x: any) => x.value)) await select('#t-oppstatus', s1.status || '');
+  const uiOppTo = a1?.kind === 'switch' ? oppIdx[a1.to] : team.mons.findIndex((m: any) => dex.species.get(m.species).baseSpecies === oppActiveBefore.baseSpecies.baseSpecies);
+  if (oppActive6 !== uiOppTo) {
+    await fill('#t-opphp', '0');
+    if (String(oppActive6) !== await page.$eval('#t-oppactive', (x: any) => x.value)) await select('#t-oppactive', String(oppActive6));
+    if (String(pct) !== await page.$eval('#t-opphp2', (x: any) => x.value)) await fill('#t-opphp2', String(pct));
+  } else if (String(pct) !== await page.$eval('#t-opphp', (x: any) => x.value)) await fill('#t-opphp', String(pct));
+  // 状態異常：画面の既定（ターンの後の場の体の、前のターンまでの状態異常）と違うときだけ、開いて直す
+  const defOur = await page.evaluate((i: number) => (window as any).__battle.view.pos.sides[0].mons[i].status || '', ourActive);
+  if ((s0.status || '') !== defOur) { await openDetails(); await select('#t-ourstatus', s0.status || ''); }
+  const defOpp = await page.evaluate((i: number) => (window as any).__battle.view.opp[i].status || '', oppActive6);
+  if ((s1.status || '') !== defOpp) { await openDetails(); await select('#t-oppstatus', s1.status || ''); }
   const turnOps = ops;
   await page.click('#t-record');
   const ms2 = await waitResult();
@@ -162,6 +171,13 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
   }
 }
 await page.screenshot({ path: '.build/battle.png', fullPage: true });
+// 保存せずに終える：確認を受けると、準備の画面に戻り、ブラウザの今の対戦の記録が消え、保存した記録（champions.logs）は増えない
+page.once('dialog', (d: any) => d.accept());
+const logsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('champions.logs') ?? '[]').length);
+await page.click('#b-discard');
+await page.waitForSelector('#s-start', { timeout: 10000 });
+const discard = await page.evaluate(() => ({ battle: localStorage.getItem('champions.currentBattle'), logs: JSON.parse(localStorage.getItem('champions.logs') ?? '[]').length, text: document.body.innerText.includes('保存せずに終えました') }));
+console.log(`${discard.battle === null && discard.logs === logsBefore && discard.text ? '合格' : '不合格'}：保存せずに終えると、準備の画面に戻り、今の対戦の記録が消え、保存した記録は増えない ${JSON.stringify(discard)}`);
 await browser.close();
 try { process.kill(-server.pid!); } catch { /* もう止まっている */ }
 for (const r of results) console.log(`ターン${r.turn}：上位 ${r.top.join(' ／ ')}（${r.top.length}手）、記録→表示 ${(r.ms / 1000).toFixed(1)}秒、操作 ${r.ops}回${r.time ? `（画面の表示：${r.time}）` : ''}`);

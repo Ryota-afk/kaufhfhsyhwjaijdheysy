@@ -104,14 +104,33 @@ export function makeCalc(PS: any, FORMAT: string) {
   }
 
   /**
+   * 技が急所になる確率（第9世代：急所ランク0 → 1/24、1 → 1/8、2 → 1/2、3以上 → 1）。
+   * ランク：技の急所ランク＋ピントレンズ・するどいツメ（+1）＋きょううん（+1）＋きあいだめ（+2）。必ず急所の技は1。
+   */
+  function critChance(pos: Position, side: 0 | 1, moveId: string): number {
+    const m = pos.sides[side].mons[pos.sides[side].active];
+    const mv = dex.moves.get(moveId);
+    if (mv.willCrit) return 1;
+    let stage = (mv.critRatio ?? 1) - 1;
+    const item = m.itemGone ? '' : toID(m.heldItem ?? m.set.item);
+    if (item === 'scopelens' || item === 'razorclaw') stage++;
+    if (toID(m.set.ability) === 'superluck') stage++;
+    if (m.vol?.focusenergy) stage += 2;
+    return [1 / 24, 1 / 8, 1 / 2][stage] ?? 1;
+  }
+
+  /**
    * 手がかり：こちらの技で、相手の見えるHPが before% から after% になった。crit は急所の表示があったか。
+   * crit が undefined（入れていない）なら、急所かどうかは分からないとして、急所の確率で両方を混ぜる
+   * （相手がシェルアーマー・カブトアーマーなら急所にならない）。
    * 相手の本当のHPは分からないので、before% に当たるHPの値を等しくありうるとして数える。
    */
-  function clueDamageToOpp(pos: Position, ourSide: 0 | 1, species: string, ourMove: string, before: number, after: number, crit: boolean): Clue {
+  function clueDamageToOpp(pos: Position, ourSide: 0 | 1, species: string, ourMove: string, before: number, after: number, crit: boolean | undefined): Clue {
     const cache = new Map<string, number>();
     const oppSide = (1 - ourSide) as 0 | 1;
+    const pc = crit === undefined ? critChance(pos, ourSide, ourMove) : 0;
     return {
-      label: `${ourMove} で相手のHPが ${before}% → ${after}%${crit ? '（急所）' : ''}`,
+      label: `${ourMove} で相手のHPが ${before}% → ${after}%${crit ? '（急所）' : crit === undefined ? '（急所は不明）' : ''}`,
       like: (c: SetCand) => {
         const key = JSON.stringify([c.item, c.ability, c.nature, c.evs]);
         let p = cache.get(key);
@@ -121,16 +140,22 @@ export function makeCalc(PS: any, FORMAT: string) {
         const endure = (h: number) => h === maxhp && (toID(c.ability) === 'sturdy' || (toID(c.item) === 'focussash' && !oppMon.itemGone));
         const hs: number[] = [];
         for (let h = 1; h <= maxhp; h++) if (shownPercent(h, maxhp) === before) hs.push(h);
-        let hit = 0, total = 0;
-        for (const h of hs) {
-          const p2 = withCandidate(pos, oppSide, species, c);
-          const s = p2.sides[oppSide]; s.mons[s.active].hp = h;
-          let rolls: number[] | null;
-          try { rolls = damageRolls(p2, ourSide, ourMove, crit); } catch { cache.set(key, 0); return 0; }
-          if (!rolls) { total += 16; continue; }
-          for (const d0 of rolls) { const d = endure(h) ? Math.min(d0, h - 1) : d0; total++; if (shownPercent(h - d, maxhp) === after) hit++; }
-        }
-        p = total ? hit / total : 0;
+        const chance = (cr: boolean): number | null => {
+          let hit = 0, total = 0;
+          for (const h of hs) {
+            const p2 = withCandidate(pos, oppSide, species, c);
+            const s = p2.sides[oppSide]; s.mons[s.active].hp = h;
+            let rolls: number[] | null;
+            try { rolls = damageRolls(p2, ourSide, ourMove, cr); } catch { return null; }
+            if (!rolls) { total += 16; continue; }
+            for (const d0 of rolls) { const d = endure(h) ? Math.min(d0, h - 1) : d0; total++; if (shownPercent(h - d, maxhp) === after) hit++; }
+          }
+          return total ? hit / total : 0;
+        };
+        const armor = ['battlearmor', 'shellarmor'].includes(toID(c.ability));
+        if (crit !== undefined || pc === 0 || armor) { const x = chance(!!crit && !armor); p = x ?? 0; }
+        else if (pc >= 1) { p = chance(true) ?? 0; }
+        else { const n = chance(false), y = chance(true); p = n === null || y === null ? 0 : (1 - pc) * n + pc * y; }
         cache.set(key, p);
         return p;
       },

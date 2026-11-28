@@ -25,8 +25,8 @@ export interface TurnInput {
   ours: OurAction;
   opp: OppAction;
   first?: 'us' | 'them';           // 両方が技を出したとき、どちらが先だったか
-  critOnOpp?: boolean;             // こちらの攻撃が急所だった
-  critOnUs?: boolean;              // 相手の攻撃が急所だった
+  critOnOpp?: boolean;             // こちらの攻撃が急所だった（入れていなければ undefined＝分からない）
+  critOnUs?: boolean;              // 相手の攻撃が急所だった（同上）
   oppItem?: string;                // 相手の持ち物の発動（英語名）
   oppAbility?: string;             // 相手の特性の発動（英語名）
   ourMega?: boolean;               // こちらがこのターンにメガシンカした（技を出せなくてもメガシンカは起きる）
@@ -272,7 +272,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
         // みがわりがあるとき、ばけのかわ・アイスフェイスがはがれていないときは、HPの減り方が技のダメージにならない
         const shielded = !!oppStartMon.vol?.substitute || (['Mimikyu', 'Eiscue'].includes(dex.species.get(this.setup.oppSpecies[oppActiveIdx]).baseSpecies) && !oppStartMon.forme);
         if (quiet && !shielded && !transformer && !typeShifter && !itemFrozen && mv.category !== 'Status' && !mv.multihit && t.after.oppHpPct < before) {
-          os.add(calc.clueDamageToOpp(clueStart, 0, this.setup.oppSpecies[oppActiveIdx], mv.name, before, t.after.oppHpPct, !!t.critOnOpp));
+          os.add(calc.clueDamageToOpp(clueStart, 0, this.setup.oppSpecies[oppActiveIdx], mv.name, before, t.after.oppHpPct, t.critOnOpp));
         }
       }
       if (this.knockedPending !== null) { this.itemGone[this.knockedPending] = true; this.knockedPending = null; }
@@ -325,8 +325,9 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
         if (f && (f.startsWith('|move|p2a') ? 'them' : 'us') !== t.first) s += 2;
       }
       const critOnOpp = log.some(l => l.startsWith('|-crit|p2a')), critOnUs = log.some(l => l.startsWith('|-crit|p1a'));
-      if (!!t.critOnOpp !== critOnOpp) s += 1;
-      if (!!t.critOnUs !== critOnUs) s += 1;
+      // 急所を入れていない（undefined）ときは比べない
+      if (t.critOnOpp !== undefined && t.critOnOpp !== critOnOpp) s += 1;
+      if (t.critOnUs !== undefined && t.critOnUs !== critOnUs) s += 1;
       return s;
     }
 
