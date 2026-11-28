@@ -6,7 +6,7 @@ import type { Position, StatusID, MonSet } from '../engine/position.ts';
 import { SearchPool } from '../search/coordinator.ts';
 import { putFile } from '../party/github.ts';
 import { spotSolve } from '../select/spot.ts';
-import { emptyStats, solveTable, type TableStats } from '../select/table.ts';
+import { emptyStats, solveTable, allowedRows, type TableStats } from '../select/table.ts';
 import { pickOf } from '../select/cell.ts';
 import { partyKey, plainSet } from '../select/key.ts';
 import { predictCell } from '../select/model.ts';
@@ -174,15 +174,18 @@ async function computeSelection(p: any, ids: string[]) {
   const model = await fetchJson(`${base}data/precomputed/${p.id}/model.json`);
   const prior = model && model.partyKey === key && model.tables > 0 ? (k: number) => predictCell(model, species, k) : undefined;
   if (gen !== selectGen) return;
+  // こちらが選べる選び方：メガストーンを持つポケモンがちょうど1匹の組だけ（いなければ全部）
+  const allowed = allowedRows(i => !!dex.items[toID(p.mons[i]?.item ?? '')]?.megaStone);
+  if (allowed) basis.push('こちらは、メガストーンを持つポケモンがちょうど1匹の組だけから選ぶ');
   let sol, games = 0, ms = 0;
   if (basis.length) {
-    sol = solveTable(stats, prior);
+    sol = solveTable(stats, prior, 0.01, allowed);
   } else {
     const priors = mergePriors(await fetchJson(`${base}data/priors/sets.json`), await fetchJson(`${base}data/priors/learned.json`));
     theirs = ids.map(id => likelySet(priors?.species?.[id]));
     if (theirs.some(x => !x)) { el.innerHTML = `<p class="warn">型の候補がない相手がいるため、選出を計算できません：${esc(ids.filter((_, i) => !theirs[i]).map(id => jn('species', id)).join('、'))}</p>`; return; }
     basis.push(prior ? `近い構築からの見積もり（保存した表 ${model.tables}個・${model.games}試合から作った相性）` : '保存した表も近い構築の結果もありません（確率はあてになりません）');
-    if (selectBudget() <= 0) { sol = solveTable(stats, prior); }
+    if (selectBudget() <= 0) { sol = solveTable(stats, prior, 0.01, allowed); }
     else {
     const { workers, ready } = getSelectWorkers();
     await ready;
@@ -200,7 +203,7 @@ async function computeSelection(p: any, ids: string[]) {
     // 打ちかけの試合が締め切りの後に終わる分（i5-5300 で1試合数秒の見込み）として3秒残す
     const timeMs = Math.max(3000, selectBudget() - (performance.now() - tStart) - 3000);
     el.innerHTML = `<p>選出を計算しています…（その場の試合：<span id="s-prog">0</span>、最大${Math.round(timeMs / 1000)}秒）</p>`;
-    const r = await spotSolve({ stats, prior, timeMs, workers: workers.length, play, cancelled: () => gen !== selectGen,
+    const r = await spotSolve({ stats, prior, timeMs, workers: workers.length, play, allowed, cancelled: () => gen !== selectGen,
       onProgress: g => { const pe = document.getElementById('s-prog'); if (pe && gen === selectGen) pe.textContent = String(g); } });
     sol = r.sol; games = r.games; ms = r.ms;
     if (games) basis.push(`その場の試合 ${games}（${(ms / 1000).toFixed(0)}秒）`);

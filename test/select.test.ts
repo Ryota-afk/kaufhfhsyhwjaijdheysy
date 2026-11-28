@@ -133,3 +133,24 @@ test('相性の見積もり＋少しの試合で作った表でも、釣り合�
     assert.ok(sol.value > 0 && sol.value < 1, `${trial}：値 ${sol.value}`);
   }
 });
+
+import { allowedRows } from '../src/select/table.ts';
+test('選べる行：メガストーンを持つポケモンが2匹（0番と1番）なら、ちょうど1匹を含む12組×先発3＝36行だけ。いなければ全部', () => {
+  const rows = allowedRows(i => i === 0 || i === 1)!;
+  assert.equal(rows.length, 36);
+  for (const r of rows) { const t = pickOf(r).trio; assert.equal(t.filter(i => i === 0 || i === 1).length, 1); }
+  assert.equal(allowedRows(() => false), undefined);
+  assert.equal(allowedRows(i => i === 3)!.length, 30);   // 1匹だけなら、その1匹を含む10組
+  // 解くと、選べない行の確率は0。試合を足すマスも選べる行だけ
+  let st = 5; const rand = () => { st = (st * 16807) % 2147483647; return st / 2147483647; };
+  const s = emptyStats();
+  for (let k = 0; k < SIZE * SIZE; k++) { s.n[k] = 4; s.w[k] = Math.round(rand() * 4); }
+  const sol = solveTable(s, undefined, 0.01, rows);
+  const ok = new Set(rows);
+  sol.row.forEach((p, r) => { if (!ok.has(r)) assert.equal(p, 0); });
+  assert.ok(Math.abs(sol.row.reduce((a, b) => a + b, 0) - 1) < 1e-6);
+  const w = nextWork(s, 4, [8], undefined, rows);
+  for (const k of w.need.keys()) assert.ok(ok.has(Math.floor(k / SIZE)), `行 ${Math.floor(k / SIZE)} に試合を足さない`);
+  const w0 = nextWork(emptyStats(), 4, [8], undefined, rows);
+  assert.equal(w0.need.size, 36 * SIZE);
+});

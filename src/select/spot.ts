@@ -10,6 +10,7 @@ export interface SpotOptions {
   levels?: number[];
   onProgress?: (games: number) => void;   // 1試合ごと
   cancelled?: () => boolean;               // 入力が変わったら途中でやめる
+  allowed?: number[];                      // こちらが選べる行（allowedRows。なければ全部）
 }
 
 export async function spotSolve(o: SpotOptions): Promise<{ sol: TableSolution; games: number; ms: number }> {
@@ -19,7 +20,7 @@ export async function spotSolve(o: SpotOptions): Promise<{ sol: TableSolution; g
   const live = () => performance.now() < deadline && !o.cancelled?.();
   while (live()) {
     // 試合のないマスは見積もり（prior）で埋まっている前提なので、全部のマスを打つ段階は飛ばす（n0 = 0）
-    const work = nextWork(o.stats, 0, levels, o.prior);
+    const work = nextWork(o.stats, 0, levels, o.prior, o.allowed);
     if (work.done) break;
     const jobs: number[] = [];
     for (const [k, need] of work.need) for (let i = 0; i < need; i++) jobs.push(k);
@@ -36,5 +37,5 @@ export async function spotSolve(o: SpotOptions): Promise<{ sol: TableSolution; g
     };
     await Promise.all(Array.from({ length: o.workers }, runOne));
   }
-  return { sol: solveTable(o.stats, o.prior), games, ms: performance.now() - t0 };
+  return { sol: solveTable(o.stats, o.prior, 0.01, o.allowed), games, ms: performance.now() - t0 };
 }

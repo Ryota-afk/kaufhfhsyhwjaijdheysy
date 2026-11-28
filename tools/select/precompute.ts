@@ -7,7 +7,7 @@ import { availableParallelism } from 'node:os';
 import { partyKey as keyOf, plainSet } from '../../src/select/key.ts';
 import { Worker } from 'node:worker_threads';
 import { loadShowdown, FORMAT } from '../showdown/load.ts';
-import { emptyStats, nextWork, solveTable, SIZE, type TableStats } from '../../src/select/table.ts';
+import { emptyStats, nextWork, solveTable, allowedRows, SIZE, type TableStats } from '../../src/select/table.ts';
 
 const arg = (name: string, d: string) => { const i = process.argv.indexOf(`--${name}`); return i >= 0 ? process.argv[i + 1] : d; };
 const MINUTES = Number(arg('minutes', '10')), SHARD = Number(arg('shard', '0')), SHARDS = Number(arg('shards', '1'));
@@ -54,13 +54,17 @@ function load(party: any, team: any): Saved {
   if (s.partyKey !== partyKey(party) || JSON.stringify(s.ai) !== JSON.stringify(AI)) { console.log(`作り直し：${f}（パーティか AI の設定が変わった）`); return fresh; }
   return s;
 }
+// こちらが選べる行：メガストーンを持つポケモンがちょうど1匹の組だけ（いなければ全部）。src/select/table.ts の allowedRows
+const rowsOf = (party: any) => allowedRows(i => !!PS.Dex.forFormat(FORMAT).items.get(party.mons[i]?.item ?? '').megaStone);
 function save(s: Saved, party: any, team: any) {
   mkdirSync(`${OUT}/${party.id}`, { recursive: true });
   const st: TableStats = { n: s.n, w: s.w };
-  if (s.n.every(x => x > 0)) {
-    const sol = solveTable(st);
+  const rows = rowsOf(party);
+  if ((rows ?? [...Array(SIZE).keys()]).every(r => s.n.slice(r * SIZE, r * SIZE + SIZE).every(x => x > 0))) {
+    const sol = solveTable(st, undefined, 0.01, rows);
     const top = (p: number[]) => p.map((x, i) => [i, Math.round(x * 1e4) / 1e4]).filter(([, x]) => x > 0);
-    s.solution = { value: Math.round(sol.value * 1e4) / 1e4, row: top(sol.row), col: top(sol.col) };
+    // rule：こちらの選べる行の決まり（mega1：メガストーンを持つポケモンがちょうど1匹の組だけ、all：全部）
+    s.solution = { value: Math.round(sol.value * 1e4) / 1e4, row: top(sol.row), col: top(sol.col), rule: rows ? 'mega1' : 'all' };
   }
   s.updatedAt = new Date().toISOString();
   writeFileSync(fileOf(party, team), JSON.stringify(s));
@@ -79,7 +83,8 @@ let totalGames = 0;
 for (const { party, team } of mine) {
   if (Date.now() > deadline) break;
   const s = load(party, team);
-  if (s.done) continue;
+  // 選べる行の決まりを後から変えたとき（2026-11-28、メガ1匹の組だけ）に、保存した「終わり」の表も、決まりに合わせて解き直し、足りないマスがあれば続ける
+  if (s.done) { const w = nextWork(s, AI.n0, AI.levels, undefined, rowsOf(party)); if (w.done) { if (s.solution && !s.solution.rule) { save(s, party, team); } continue; } s.done = false; }
   const label = `${party.name ?? party.id} 対 ${team.rank}位`;
   const ours = party.mons.map(plain), theirs = team.mons.map(plain);
   let tMark = Date.now();
@@ -87,7 +92,7 @@ for (const { party, team } of mine) {
   let lastSave = Date.now(), gamesHere = 0;
   console.log(`始める：${label}（保存済みの試合 ${s.games}）`);
   while (Date.now() < deadline) {
-    const work = nextWork(s, AI.n0, AI.levels);
+    const work = nextWork(s, AI.n0, AI.levels, undefined, rowsOf(party));
     s.level = work.level;
     if (work.done) { s.done = true; break; }
     // 足りない試合を、マスの番号の順に並べて手伝いに配る。試合の種は「マスと、そのマスの何試合目か」で決める
