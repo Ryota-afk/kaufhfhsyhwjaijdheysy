@@ -13,8 +13,9 @@ const arg = (name: string, d: string) => { const i = process.argv.indexOf(`--${n
 const MINUTES = Number(arg('minutes', '10')), SHARD = Number(arg('shard', '0')), SHARDS = Number(arg('shards', '1'));
 const THREADS = Number(arg('threads', String(availableParallelism())));
 const SAVE_EVERY_MS = 3 * 60 * 1000;
-// AI と試合数の設定（docs/select.md の測定で決めた値）。変えたら保存済みの表は作り直しになる
-const AI = { iters: Number(arg('iters', '100')), n0: Number(arg('n0', '4')), levels: arg('levels', '16,32').split(',').filter(Boolean).map(Number) };
+// AI と試合数の設定（docs/select.md の測定で決めた値）。AI の探索の回数か最初の試合数を変えたら、保存済みの表は作り直しになる。
+// 試合を足す段階（levels）は、増やしても前の試合をそのまま使い、続きから足す（2026-11-28、利用者の承認で 16,32 → 16,32,64,128）
+const AI = { iters: Number(arg('iters', '100')), n0: Number(arg('n0', '4')), levels: arg('levels', '16,32,64,128').split(',').filter(Boolean).map(Number) };
 // 保存先（確かめ用に別の場所へ書ける）
 const OUT = arg('out', 'data/precomputed');
 const deadline = Date.now() + MINUTES * 60 * 1000;
@@ -51,7 +52,9 @@ function load(party: any, team: any): Saved {
   if (!existsSync(f)) return fresh;
   const s: Saved = JSON.parse(readFileSync(f, 'utf8'));
   // パーティを直した、または AI の設定を変えたときは作り直す
-  if (s.partyKey !== partyKey(party) || JSON.stringify(s.ai) !== JSON.stringify(AI)) { console.log(`作り直し：${f}（パーティか AI の設定が変わった）`); return fresh; }
+  if (s.partyKey !== partyKey(party) || s.ai?.iters !== AI.iters || s.ai?.n0 !== AI.n0) { console.log(`作り直し：${f}（パーティか AI の設定が変わった）`); return fresh; }
+  // 段階だけが違う：前の試合はそのまま使い、今の段階で続きから足す
+  if (JSON.stringify(s.ai.levels) !== JSON.stringify(AI.levels)) { s.ai = AI; s.done = false; }
   return s;
 }
 // こちらが選べる行：メガストーンを持つポケモンがちょうど1匹の組だけ（いなければ全部）。src/select/table.ts の allowedRows
