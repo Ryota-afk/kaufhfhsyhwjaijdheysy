@@ -1,15 +1,15 @@
-// 選出の表の1マス：こちらの「3体＋先発」と相手の「3体＋先発」で、AIどうしを対戦させて勝ち負けを数える。
+// 選出の表の1マス：こちらの「3匹＋先発」と相手の「3匹＋先発」で、AIどうしを対戦させて勝ち負けを数える。
 // どちらのAIも、同時手番の木探索（src/search/mcts.ts）を1手ごとに iters 回だけ回す。両者の型は分かっている前提で打つ。
 import { search, legalChoices, step } from '../search/mcts.ts';
 
-/** 6体から3体の選び方（20通り、番号の小さい順）。 */
+/** 6匹から3匹の選び方（20通り、番号の小さい順）。 */
 export const TRIOS: number[][] = (() => {
   const out: number[][] = [];
   for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) for (let c = b + 1; c < 6; c++) out.push([a, b, c]);
   return out;
 })();
 
-/** 行・列の番号（0〜59）＝ 3体の番号×3 ＋ 先発がその3体の何番目か。 */
+/** 行・列の番号（0〜59）＝ 3匹の番号×3 ＋ 先発がその3匹の何番目か。 */
 export function pickOf(k: number): { trio: number[]; lead: number; order: number[] } {
   const trio = TRIOS[Math.floor(k / 3)], li = k % 3;
   return { trio, lead: trio[li], order: [trio[li], ...trio.filter((_, i) => i !== li)] };
@@ -24,7 +24,7 @@ export interface PlainSet { species: string; item: string; ability: string; natu
 const toShowdown = (m: PlainSet) => ({ name: '', species: m.species, item: m.item, ability: m.ability, nature: m.nature, evs: m.evs, ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, moves: m.moves, level: 50, gender: '' });
 
 /**
- * 1試合を打つ。ours / theirs は6体、rowK / colK は行・列の番号。戻り値：こちらの勝ち 1、負け 0、決着なし 0.5。
+ * 1試合を打つ。ours / theirs は6匹、rowK / colK は行・列の番号。戻り値：こちらの勝ち 1、負け 0、決着なし 0.5。
  * PS は速さの層を当てた Showdown、clone は速い複製。
  */
 export function playCell(PS: any, FORMAT: string, clone: (b: any) => any, ours: PlainSet[], theirs: PlainSet[], rowK: number, colK: number, iters: number, seed: number): number {

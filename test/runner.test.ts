@@ -43,7 +43,7 @@ test('メガシンカ済みの盤面：姿が変わったときの特性（ひ�
   assert.equal(r2.battle.sides[0].active[0].boosts.atk, 0);
 });
 
-test('死に出しの場面：場の体が倒れていて控えがあれば、交代先を選ぶ要求になり、選ぶと次のターンの技の要求になる', () => {
+test('死に出しの場面：場のポケモンが倒れていて控えがあれば、交代先を選ぶ要求になり、選ぶと次のターンの技の要求になる', () => {
   const mon = (species: string, item: string, ability: string, moves: string[], hp = 150) => ({ set: { species, item, ability, nature: 'Hardy', evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 }, moves }, hp, status: '' as const });
   const pos: any = { sides: [
     { mons: [mon('Kleavor', 'focussash', 'sharpness', ['stoneaxe'], 0), mon('Salamence', 'leftovers', 'intimidate', ['dragonclaw']), mon('Garchomp', 'lifeorb', 'roughskin', ['earthquake'])], active: 0, cond: { stealthrock: true } },

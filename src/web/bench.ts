@@ -43,7 +43,7 @@ async function bench(seconds = 20) {
     ws.forEach(w => w.terminate());
     iter.push({ workers: n, itersPerSec: rs.reduce((a, r) => a + r.itersPerSec, 0) });
   }
-  // 実際の探索を10秒：上位構築の1位と2位の先頭3体どうし、仮の盤面8つ
+  // 実際の探索を10秒：上位構築の1位と2位の先頭3匹どうし、仮の盤面8つ
   const toID = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
   const side = (t: any) => ({ active: 0, mons: t.mons.slice(0, 3).map((m: any) => ({ set: { species: m.species, item: toID(m.item), ability: toID(m.ability), nature: m.nature, evs: m.evs, moves: m.moves.map(toID) }, hp: 999, status: '' })) });
   const pos = { sides: [side(teams[0]), side(teams[1])] };

@@ -245,7 +245,7 @@ const fp = (r: any) => JSON.stringify(r.outcome());
   const dup = fix([0, 1, 2, 3, 4, 5].map(i => base(i < 2 ? 'leftovers' : ['lifeorb', 'focussash', 'choicescarf', 'sitrusberry', 'rockyhelmet', 'airballoon'][i], i)));
   const uniq = fix([0, 1, 2, 3, 4, 5].map(i => base(['leftovers', 'lifeorb', 'focussash', 'choicescarf', 'sitrusberry', 'rockyhelmet'][i], i)));
   const pDup = v.validateTeam(dup), pUniq = v.validateTeam(uniq);
-  record('itemclause', '同じ持ち物は1チーム1つまで', 'たべのこしを2体に持たせたチームは検査で弾かれ、全部違うチームは通る', {
+  record('itemclause', '同じ持ち物は1チーム1つまで', 'たべのこしを2匹に持たせたチームは検査で弾かれ、全部違うチームは通る', {
     同じ持ち物2つ: pDup ? `弾かれた（${pDup.join(' / ')}）` : '通った', 全部違う: pUniq ? `弾かれた（${pUniq.join(' / ')}）` : '通った',
   }, !!pDup && !pUniq, [String(!!pDup), String(!pUniq)]);
 }
@@ -267,10 +267,10 @@ const fp = (r: any) => JSON.stringify(r.outcome());
   notes.push(`最初にメガシンカを選べた：${before}`, `メガシンカ後のガブリアスの姿：${spAfter}`, `ルカリオに交代した後にメガシンカを選べる：${after}`, `「move 1 mega」を送ったときに受け付けられた：${accepted}`);
   if (!before || after || accepted || !spAfter.includes('mega')) ok = false;
   fps.push(fp(r));
-  record('megaonce', 'メガシンカは1対戦で1回だけ', '1体がメガシンカした後は、ほかの個体はメガシンカを選べない', { 結果: notes }, ok, fps);
+  record('megaonce', 'メガシンカは1対戦で1回だけ', '1匹がメガシンカした後は、ほかのポケモンはメガシンカを選べない', { 結果: notes }, ok, fps);
 }
 
-// 10. 最後の1体どうしが同時に倒れたら、後に倒れた側の勝ち
+// 10. 最後の1匹どうしが同時に倒れたら、後に倒れた側の勝ち
 {
   const cases: [string, PosMon, PosMon, string][] = [
     ['いのちのたまの反動', mon('garchomp', { item: 'lifeorb', moves: ['earthquake'], hp: 1 }), mon('metagross', { hp: 1, moves: ['calmmind'] }), '攻撃側（p1）が後に倒れる'],
@@ -295,7 +295,7 @@ const fp = (r: any) => JSON.stringify(r.outcome());
     if (!both || o.winner !== 0) ok = false;
     fps.push(fp(r));
   }
-  record('simulfaint', '最後の1体どうしが同時に倒れたとき', '後に倒れた側の勝ち', { 結果: rows }, ok, fps);
+  record('simulfaint', '最後の1匹どうしが同時に倒れたとき', '後に倒れた側の勝ち', { 結果: rows }, ok, fps);
 }
 
 // 11. 決着したら、そのターンの残りの行動は行わない
@@ -315,7 +315,7 @@ const fp = (r: any) => JSON.stringify(r.outcome());
     }
     fps.push(fp(r));
   }
-  record('endstop', '決着した時点で、そのターンの残りの行動は行わない', '先に動いて最後の1体を倒したら、後の技・やけど・たべのこしは起きない', { 結果: rows }, ok, fps);
+  record('endstop', '決着した時点で、そのターンの残りの行動は行わない', '先に動いて最後の1匹を倒したら、後の技・やけど・たべのこしは起きない', { 結果: rows }, ok, fps);
 }
 
 mkdirSync('.build', { recursive: true });

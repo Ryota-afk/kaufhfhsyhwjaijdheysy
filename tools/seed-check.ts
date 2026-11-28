@@ -26,7 +26,7 @@ const dupUrl = [...byUrl.entries()].filter(([, r]) => r.length > 1);
 lines.push(`- 記事URLが同じ構築：${dupUrl.length} 組`);
 for (const [u, r] of dupUrl) {
   const same = r.map(x => byRank.get(x)!.mons.map(m => m.species).join('/'));
-  lines.push(`  - 順位 ${r.join(', ')}（6体が${new Set(same).size === 1 ? '同じ' : '違う'}）：${u}`);
+  lines.push(`  - 順位 ${r.join(', ')}（6匹が${new Set(same).size === 1 ? '同じ' : '違う'}）：${u}`);
 }
 lines.push(`- 記事URLがない構築：${teams.filter(t => !t.article_url).map(t => t.rank).join(', ') || 'なし'}`);
 
@@ -36,7 +36,7 @@ for (const t of teams) for (const m of t.mons) {
   const s = Object.values(m.evs).reduce((a, b) => a + b, 0);
   if (s !== 66) evSums.set(s, [...(evSums.get(s) ?? []), `${t.rank}位 ${m.jp}`]);
 }
-lines.push(`- 能力ポイントの合計が66でないもの：${[...evSums.values()].flat().length} 体`);
+lines.push(`- 能力ポイントの合計が66でないもの：${[...evSums.values()].flat().length} 匹`);
 for (const [s, who] of evSums) lines.push(`  - 合計${s}：${who.join('、')}`);
 const fewMoves = teams.flatMap(t => t.mons.filter(m => m.moves.length < 4).map(m => `${t.rank}位 ${m.jp}（${m.moves.length}つ）`));
 lines.push(`- 技が4つ未満：${fewMoves.join('、') || 'なし'}`);
@@ -55,6 +55,6 @@ for (const t of teams) {
   }
 }
 lines.push('', `問題なし：${teams.length - bad} 構築、問題あり：${bad} 構築。`);
-lines.push('', '特性が空の個体は、エンジンでは Showdown の種族の最初の特性として扱う予定（未確定）。');
+lines.push('', '特性が空のポケモンは、エンジンでは Showdown の種族の最初の特性として扱う予定（未確定）。');
 writeFileSync(resolve(ROOT, 'docs/seed-check.md'), lines.join('\n') + '\n');
 console.log(lines.join('\n'));

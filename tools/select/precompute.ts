@@ -42,7 +42,7 @@ const mine = items.filter((_, i) => i % SHARDS === SHARD);
 console.log(`対象：パーティ ${parties.length}、構築 ${teams.length}、この分担の仕事 ${mine.length}、手伝い ${THREADS}、${MINUTES}分で区切る`);
 
 interface Saved { party: string; partyKey: string; team: { rank: number; season: string; species: string[] }; ai: typeof AI; n: number[]; w: number[]; level: number; done: boolean; games: number; seconds: number; solution?: any; updatedAt: string }
-// パーティの中身（6体の型）が同じかどうかの目印。名前や印を変えただけでは作り直さない
+// パーティの中身（6匹の型）が同じかどうかの目印。名前や印を変えただけでは作り直さない
 const partyKey = (party: any) => keyOf(party.mons);
 // 表のファイル：M-7 は <順位>.json（最初に作った形のまま）、ほかのシーズンは m<番号>-<順位>.json。前のシーズンの表は残す
 const fileOf = (party: any, team: any) => `${OUT}/${party.id}/${team.season === 'M-7' ? '' : `${String(team.season).toLowerCase().replace('-', '')}-`}${team.rank}.json`;

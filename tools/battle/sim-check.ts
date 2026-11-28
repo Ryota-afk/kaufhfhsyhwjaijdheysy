@@ -1,8 +1,8 @@
 // 対戦の記録係（src/battle/analyze.ts）の通しの確かめ。
-// Showdown で本当に対戦（こちら：利用者のチーム2から3体、相手：上位構築から3体）を打ち、毎ターン、画面に見えることだけを
+// Showdown で本当に対戦（こちら：利用者のチーム2から3匹、相手：上位構築から3匹）を打ち、毎ターン、画面に見えることだけを
 // 記録係に入れていく。次を確かめる：
 //  1. 相手の本当の型が、推定から消えない（手がかりで誤って消していない）
-//  2. こちらのHPと場の体、相手のHPの%が合う
+//  2. こちらのHPと場のポケモン、相手のHPの%が合う
 //  3. 仮の盤面8つが、Showdown で作れる
 //  4. 探索が上位3手を返す
 //  5. 再現が入力と合った割合
@@ -148,7 +148,7 @@ for (let g = 0; g < GAMES; g++) {
         }
       }
     }
-    // 2. HP と場の体
+    // 2. HP と場のポケモン
     const ap = an.pos;
     if (ap.sides[0].mons[ap.sides[0].active].hp !== b.sides[0].active[0].hp) hpBad++;
     if (an.opp[oppActiveIdx].hpPct !== input.after.oppHpPct) hpBad++;
@@ -171,7 +171,7 @@ for (let g = 0; g < GAMES; g++) {
 if (process.env.PREDICT && pred.n) {
   const pc = (x: number, n = pred.n) => `${(x / n * 100).toFixed(0)}%`;
   const od = [...pred.oppDiff].sort((a, b) => a - b);
-  console.log(`予想（${pred.n}ターン）：こちらの場の体のHPが一致 ${pc(pred.ourHp)}、こちらの3体のHPが全部一致 ${pc(pred.ourAll)}、相手のHP%が一致 ${pc(pred.oppExact)}・5以内 ${pc(pred.opp5)}（差の中央値 ${od[Math.floor(od.length / 2)]}）、先に動いた側が一致 ${pc(pred.first, pred.firstN)}（${pred.firstN}ターン）、場の体が一致 ${pc(pred.active)}、状態異常が一致 ${pc(pred.status)}、全部一致（何も直さなくてよい）${pc(pred.all)}`);
+  console.log(`予想（${pred.n}ターン）：こちらの場のポケモンのHPが一致 ${pc(pred.ourHp)}、こちらの3匹のHPが全部一致 ${pc(pred.ourAll)}、相手のHP%が一致 ${pc(pred.oppExact)}・5以内 ${pc(pred.opp5)}（差の中央値 ${od[Math.floor(od.length / 2)]}）、先に動いた側が一致 ${pc(pred.first, pred.firstN)}（${pred.firstN}ターン）、場のポケモンが一致 ${pc(pred.active)}、状態異常が一致 ${pc(pred.status)}、全部一致（何も直さなくてよい）${pc(pred.all)}`);
 }
 const sorted = [...scores].sort((a, b) => a - b);
 console.log(`試合 ${games}、ターン ${turns}`);

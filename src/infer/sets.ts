@@ -1,4 +1,4 @@
-// 相手の1体の型の候補と、見えた情報での更新（ベイズの式）。画面にも Node にも依存しない。
+// 相手の1匹の型の候補と、見えた情報での更新（ベイズの式）。画面にも Node にも依存しない。
 // 名前はすべて Showdown の英語名で持つ。
 export type Stats = Record<'hp' | 'atk' | 'def' | 'spa' | 'spd' | 'spe', number>;
 export interface SetCand {
@@ -59,7 +59,7 @@ export const clueItem = (item: string): Clue => ({ label: `持ち物が ${item}`
 export const clueNotItem = (item: string): Clue => ({ label: `持ち物が ${item} ではない`, like: c => toID(c.item) === toID(item) ? 0 : 1 });
 export const clueAbility = (ability: string): Clue => ({ label: `特性が ${ability}`, like: c => toID(c.ability) === toID(ability) ? 1 : 0 });
 
-/** 1体の推定。見えた技と、それ以外の手がかりを持ち、確率を出す。 */
+/** 1匹の推定。見えた技と、それ以外の手がかりを持ち、確率を出す。 */
 export class OpponentSet {
   cands: SetCand[];
   moves: string[] = [];

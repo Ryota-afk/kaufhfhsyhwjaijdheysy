@@ -7,7 +7,7 @@
 //     上位構築の型 s の重み    w_s → w_s + P_s
 //     それ以外の型の割合       1/(n+1) → (1 + G) / (n + 1 + L)
 //     それ以外の型の中の持ち物・能力ポイントの割合：もとの割合を1件分として、記録の確率を足して割り直す
-// 選出（BenchModel）：種族の「選出に入る割合」と、上位構築ごとの3体の組の割合に、記録の確率を1件分として足す。
+// 選出（BenchModel）：種族の「選出に入る割合」と、上位構築ごとの3匹の組の割合に、記録の確率を1件分として足す。
 import type { PriorEntry } from '../infer/sets.ts';
 
 const toID = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -25,7 +25,7 @@ export interface Learned {
   sets: Record<string, LearnedSpecies>;         // 種族 id →
   bench: {
     rates: Record<string, [number, number]>;    // 種族 id → [選出に入った確率の合計, 出会った回数]
-    teams: Record<string, { n: number; trios: Record<string, number> }>;   // 上位構築の順位 → 記録の数と、3体の組（構築の並びの番号）→ 確率の合計
+    teams: Record<string, { n: number; trios: Record<string, number> }>;   // 上位構築の順位 → 記録の数と、3匹の組（構築の並びの番号）→ 確率の合計
   };
 }
 

@@ -25,7 +25,7 @@ const seenPairs = new Map<string, { sp: string; key: string }>();
 for (const f of readdirSync(`${DIR}/logs`)) {
   const log = JSON.parse(readFileSync(`${DIR}/logs/${f}`, 'utf8'));
   const truth = JSON.parse(readFileSync(`${DIR}/truth/${f}`, 'utf8'));
-  // 出てきた体：記録のどこかで場に出た体（相手の先発、交代先、倒れた後の場の体）
+  // 出てきたポケモン：記録のどこかで場に出たポケモン（相手の先発、交代先、倒れた後の場のポケモン）
   const seen = new Set<number>([log.start.oppLead, ...log.turns.map((t: any) => t.input.after.oppActive)]);
   for (const i of seen) {
     const k = truth.oppIdx.indexOf(i); if (k < 0) continue;
@@ -45,7 +45,7 @@ for (const { sp, key } of seenPairs.values()) {
 ratios.sort((a, b) => a - b);
 console.log(`本当の型（種族と型の組 ${seenPairs.size}）：最初の確率が上がった ${up}、下がった ${down}、同じ ${same}。比（後/前）の中央値 ${ratios[Math.floor(ratios.length / 2)]?.toFixed(2)}`);
 
-// 選出：記録のあった上位構築で、本当の3体の組の確率
+// 選出：記録のあった上位構築で、本当の3匹の組の確率
 let tUp = 0, tDown = 0;
 for (const f of readdirSync(`${DIR}/truth`)) {
   const truth = JSON.parse(readFileSync(`${DIR}/truth/${f}`, 'utf8'));
@@ -55,4 +55,4 @@ for (const f of readdirSync(`${DIR}/truth`)) {
   const p0 = b0.prior(sp, []).get(k) ?? 0, p1 = b1.prior(sp, []).get(k) ?? 0;
   if (p1 > p0 + 1e-12) tUp++; else if (p1 < p0 - 1e-12) tDown++;
 }
-console.log(`本当の選出（記録 ${readdirSync(`${DIR}/truth`).length} 件の3体の組）：確率が上がった ${tUp}、下がった ${tDown}`);
+console.log(`本当の選出（記録 ${readdirSync(`${DIR}/truth`).length} 件の3匹の組）：確率が上がった ${tUp}、下がった ${tDown}`);

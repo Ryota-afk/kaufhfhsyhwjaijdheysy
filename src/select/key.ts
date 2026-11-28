@@ -1,4 +1,4 @@
-// パーティの中身（6体の型）の目印。先回りの計算の表が、今のパーティで作ったものかを確かめるのに使う。
+// パーティの中身（6匹の型）の目印。先回りの計算の表が、今のパーティで作ったものかを確かめるのに使う。
 // 名前や「よく使う」の印を変えただけでは変わらない。ブラウザと Node の両方で同じ値になるよう、簡単な hash（FNV-1a を2本）にする。
 export const plainSet = (m: any) => ({ species: m.species, item: m.item, ability: m.ability, nature: m.nature, evs: m.evs, moves: m.moves });
 export function partyKey(mons: any[]): string {

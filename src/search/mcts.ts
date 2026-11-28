@@ -54,7 +54,7 @@ export function step(b: any, c0: string, c1: string, rand: () => number) {
   }
 }
 
-/** 盤面の良し悪し：p1 が勝つ見込み（0〜1）。残りの体の数とHPの割合、状態異常、能力ランクから。 */
+/** 盤面の良し悪し：p1 が勝つ見込み（0〜1）。残りのポケモンの数とHPの割合、状態異常、能力ランクから。 */
 export function evaluate(b: any): number {
   if (b.ended) return b.winner === b.sides[0].name ? 1 : b.winner === b.sides[1].name ? 0 : 0.5;
   const score = (side: any) => {

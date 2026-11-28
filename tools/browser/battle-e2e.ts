@@ -1,5 +1,5 @@
 // 対戦の画面の通しの確かめ（Playwright、Chromium）。先に npm run build が必要。
-// Node で Showdown の対戦（こちら：利用者のチーム2から3体、相手：上位構築から3体）を本当に打ち、毎ターン、
+// Node で Showdown の対戦（こちら：利用者のチーム2から3匹、相手：上位構築から3匹）を本当に打ち、毎ターン、
 // 画面に見えることだけを利用者と同じ操作で入れる。次を確かめる：
 //  1. 毎ターン、上位3手が出る。「記録して計算」から表示までの時間
 //  2. 1ターンの入力の操作の回数
@@ -59,7 +59,7 @@ const fill = async (sel: string, v: string) => { await page.fill(sel, v); await 
 const select = async (sel: string, v: string) => { await page.selectOption(sel, v); ops++; };
 
 // 準備
-// 相手の6体を入れると、選出のおすすめのくじが準備欄に入る。その後で、本当の対戦の3体と先発に選び直す
+// 相手の6匹を入れると、選出のおすすめのくじが準備欄に入る。その後で、本当の対戦の3匹と先発に選び直す
 for (let i = 0; i < 6; i++) await fill(`.s-opp[data-i="${i}"]`, J('species', team.mons[i].species));
 await page.waitForFunction(() => /くじの結果|計算できません/.test(document.getElementById('s-select')?.innerText ?? ''), null, { timeout: 60000 });
 for (let i = 0; i < 6; i++) { const want = ourIdx.includes(i), cur = await page.isChecked(`.s-pick[data-i="${i}"]`); if (want !== cur) await click(`.s-pick[data-i="${i}"]`); }
@@ -143,12 +143,12 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
     const cur = await page.$eval(`.t-ourhp[data-i="${k}"]`, (x: any) => x.value);
     if (String(hp) !== cur) await fill(`.t-ourhp[data-i="${k}"]`, String(hp));
   }
-  // ターンの後の場の体（両方）は、予想と違うときだけ選び直す
+  // ターンの後の場のポケモン（両方）は、予想と違うときだけ選び直す
   if (String(ourActive) !== await page.$eval('#t-ouractive', (x: any) => x.value)) await select('#t-ouractive', String(ourActive));
   const pct = shownPercent(s1.hp, s1.maxhp);
   if (String(oppActive6) !== await page.$eval('#t-oppactive', (x: any) => x.value)) await select('#t-oppactive', String(oppActive6));
   if (String(pct) !== await page.$eval('#t-opphp', (x: any) => x.value)) await fill('#t-opphp', String(pct));
-  // 場から下がった相手の体の HP（倒れたら0）
+  // 場から下がった相手のポケモンの HP（倒れたら0）
   for (const el of await page.$$('input.t-oppother')) {
     const i = Number(await el.getAttribute('data-i'));
     const p = b.sides[1].pokemon.find((q: any) => team.mons.findIndex((m: any) => dex.species.get(m.species).baseSpecies === q.baseSpecies.baseSpecies) === i);
@@ -161,7 +161,7 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
   const fixes = ops - opsBeforeFix;
   await page.click('#t-record');
   const ms2 = await waitResult();
-  // 記録した HP が、本当の体ごとの HP と一致するか（画面の並びと体の番号を取り違えていないか）
+  // 記録した HP が、本当のポケモンごとの HP と一致するか（画面の並びとポケモンの番号を取り違えていないか）
   const recHps = await page.evaluate(() => { const d = (window as any).__battle.doc; return d.turns[d.turns.length - 1].input.after.ourHps; });
   const trueHps = ourIdx.map(i => b.sides[0].pokemon.find((p: any) => p.baseSpecies.baseSpecies === dex.species.get(party[i].species).baseSpecies).hp);
   if (JSON.stringify(recHps) !== JSON.stringify(trueHps)) { hpMismatch++; console.log(`ターン${t + 1}：記録した HP ${JSON.stringify(recHps)} ／ 本当 ${JSON.stringify(trueHps)}`); }
@@ -198,7 +198,7 @@ await browser.close();
 try { process.kill(-server.pid!); } catch { /* もう止まっている */ }
 for (const r of results) console.log(`ターン${r.turn}：上位 ${r.top.join(' ／ ')}（${r.top.length}手）、記録→表示 ${(r.ms / 1000).toFixed(1)}秒、操作 ${r.ops}回${r.fixes !== undefined ? `（うち予想を直した ${r.fixes}回、予想まで ${((r.predMs ?? 0) / 1000).toFixed(1)}秒）` : ''}${r.time ? `（画面の表示：${r.time}）` : ''}`);
 console.log(`準備の操作 ${setupOps}回`);
-console.log(`${hpMismatch === 0 ? '合格' : '不合格'}：記録したこちらの HP が、毎ターン本当の体ごとの HP と一致した（ずれたターン ${hpMismatch}）`);
+console.log(`${hpMismatch === 0 ? '合格' : '不合格'}：記録したこちらの HP が、毎ターン本当のポケモンごとの HP と一致した（ずれたターン ${hpMismatch}）`);
 const allThree = results.every(r => r.top.length >= 2);
 const inTime = results.filter(r => r.turn > 0).every(r => r.ms <= SECS * 1000);
 console.log(`${inTime ? '合格' : '不合格'}：毎ターン、「記録して計算」から表示まで ${SECS}秒以内`);

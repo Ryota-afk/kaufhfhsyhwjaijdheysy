@@ -106,7 +106,7 @@ function monCard(m: PartyMon, i: number) {
   const sum = STATS.reduce((a, s) => a + (m.evs[s] || 0), 0);
   const movepool = inf ? [...inf.movepool].map(id => enName.moves.get(id)).filter(Boolean) as string[] : [];
   return `<section class="box mon" data-slot="${i}">
-    <h3>${i + 1}体目</h3>
+    <h3>${i + 1}匹目</h3>
     <p><label>ポケモン <input class="f-species" list="dl-species" value="${esc(ja('species', m.species))}"></label>
        <label>性別 <select class="f-gender"><option value="" ${!m.gender ? 'selected' : ''}>なし</option><option value="M" ${m.gender === 'M' ? 'selected' : ''}>♂</option><option value="F" ${m.gender === 'F' ? 'selected' : ''}>♀</option></select></label></p>
     <p><label>持ち物 <input class="f-item" list="dl-items" value="${esc(ja('items', m.item))}"></label></p>
@@ -126,7 +126,7 @@ function monCard(m: PartyMon, i: number) {
 let showdownProblems: string[] = [];
 function problemsHtml() {
   const ps = checkParty(current.mons, info, ja, toID);
-  const lines = ps.map(p => `<li>${p.slot === null ? '' : `${p.slot + 1}体目：`}${esc(p.text)}</li>`);
+  const lines = ps.map(p => `<li>${p.slot === null ? '' : `${p.slot + 1}匹目：`}${esc(p.text)}</li>`);
   for (const t of showdownProblems) lines.push(`<li>Showdown の検査：${esc(t)}</li>`);
   return lines.length ? `<p class="warn">入力の確認：</p><ul class="warn">${lines.join('')}</ul>` : '<p>入力の確認：問題はありません。</p>';
 }

@@ -44,7 +44,7 @@ await page.check('#party-precompute');
 for (const [i, m] of screen.entries()) {
   const card = () => page.locator(`.mon[data-slot="${i}"]`);
   const sp = ja.species[toID(m.species)];
-  await card().locator('.f-species').fill(i === 0 ? hira(sp) : sp);   // 1体目はひらがなで入れる
+  await card().locator('.f-species').fill(i === 0 ? hira(sp) : sp);   // 1匹目はひらがなで入れる
   await card().locator('.f-species').dispatchEvent('change');
   await card().locator('.f-gender').selectOption(m.gender || '');
   await card().locator('.f-item').fill(ja.items[toID(m.item)]);
@@ -67,7 +67,7 @@ const readStats = async () => {
   return out;
 };
 const stats = await readStats();
-check(screen.every((m: any, i: number) => STATS.every(s => stats[i][s] === m.shown[s])), '実数値が、ゲーム画面の数字と6体×6項目すべて一致する');
+check(screen.every((m: any, i: number) => STATS.every(s => stats[i][s] === m.shown[s])), '実数値が、ゲーム画面の数字と6匹×6項目すべて一致する');
 check((await page.locator('#problems').textContent())!.includes('問題はありません'), '入力の確認に問題が出ない');
 
 // 合い鍵を入れて保存
@@ -85,7 +85,7 @@ if (puts.length) {
   check(p.body.branch === 'main' && !p.body.sha, '新しいファイルとして main に書く');
   const want = screen.map((m: any) => ({ species: m.species, item: m.item, ability: m.ability, nature: m.nature, evs: m.evs, moves: m.moves, gender: m.gender }));
   const got = content.mons.map((m: any) => ({ species: m.species, item: m.item, ability: m.ability, nature: m.nature, evs: m.evs, moves: m.moves, gender: m.gender }));
-  check(JSON.stringify(got) === JSON.stringify(want) && content.name === 'チーム2', '書き込む中身が、入力した6体と名前に一致する');
+  check(JSON.stringify(got) === JSON.stringify(want) && content.name === 'チーム2', '書き込む中身が、入力した6匹と名前に一致する');
   check(!JSON.stringify(p.body).includes('github_pat_'), '書き込む中身に合い鍵が入っていない');
   check(content.precompute === true, '「よく使う」の印が書き込む中身に入っている');
 }
@@ -110,7 +110,7 @@ const expectRestored = screen.map((m: any) => ({
   species: ja.species[toID(m.species)], item: ja.items[toID(m.item)], ability: m.ability, nature: m.nature,
   moves: m.moves.map((x: string) => ja.moves[toID(x)]), sp: STATS.map(s => String(m.evs[s])),
 }));
-check(JSON.stringify(restored) === JSON.stringify(expectRestored), '再読み込み後、6体の名前・持ち物・特性・性格・能力ポイント・技が戻る');
+check(JSON.stringify(restored) === JSON.stringify(expectRestored), '再読み込み後、6匹の名前・持ち物・特性・性格・能力ポイント・技が戻る');
 check(await page.inputValue('#party-name') === 'チーム2', '再読み込み後、パーティの名前が戻る');
 check(await page.isChecked('#party-precompute'), '再読み込み後、「よく使う」の印が戻る');
 if (errors.length) console.log('ページのエラー：', errors);

@@ -66,7 +66,7 @@ test('技（generic）：候補から4つ選ぶ確率どおり', () => {
   assert.equal(movesLikelihood(c, ['Z']), 0);
 });
 
-// 盤面：こちら（p1）の場の1体と、相手（p2）の場の1体
+// 盤面：こちら（p1）の場の1匹と、相手（p2）の場の1匹
 function mon(m: any, hp?: number): PosMon {
   const set = { species: m.species, item: toID(m.item), ability: toID(m.ability), nature: m.nature, evs: m.evs, moves: m.moves.map(toID) };
   return { set, hp: hp ?? dexJson.species[toID(m.species)].baseStats.hp + m.evs.hp + 75, status: '' };
@@ -158,7 +158,7 @@ test('ダメージ（こちらの実数）：実際に打たれたHPの減り方
   }
 });
 
-test('控え：記事の選出の枠どおりに3体の組ができ、見えた体を条件にすると確率が動く', () => {
+test('控え：記事の選出の枠どおりに3匹の組ができ、見えたポケモンを条件にすると確率が動く', () => {
   assert.deepEqual([...trioDist([[1], [2], [3]])], [['1,2,3', 1]]);
   const d = trioDist([[1], [2], []]);
   assert.equal(d.size, 4);
@@ -166,12 +166,12 @@ test('控え：記事の選出の枠どおりに3体の組ができ、見えた�
   const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8'));
   const sels = JSON.parse(readFileSync('data/seed/selections_m7.json', 'utf8'));
   const bm = new BenchModel(teams, sels);
-  // 1位の構築（基本選出 [1],[2],[3]）とまったく同じ6体なら、1・2・3番が確率 0.9＋0.1×10/20＝0.95、ほかは 0.1×10/20＝0.05
-  // （記事にない組も出るので、どの組も同じ割合の分布を1割混ぜている。1体は20通りの組のうち10通りに入る）
+  // 1位の構築（基本選出 [1],[2],[3]）とまったく同じ6匹なら、1・2・3番が確率 0.9＋0.1×10/20＝0.95、ほかは 0.1×10/20＝0.05
+  // （記事にない組も出るので、どの組も同じ割合の分布を1割混ぜている。1匹は20通りの組のうち10通りに入る）
   const t1 = teams.find((t: any) => t.rank === 1);
   const inc = BenchModel.inclusion(bm.prior(t1.mons.map((m: any) => m.species), []), []);
   assert.ok(close(inc[1], 0.95) && close(inc[2], 0.95) && close(inc[3], 0.95) && close(inc[0], 0.05), inc.join());
-  // 知らない6体：見えた3体が確率1、残りは0。見えた1体なら、合計はいつも3
+  // 知らない6匹：見えた3匹が確率1、残りは0。見えた1匹なら、合計はいつも3
   const unknown = ['Pikachu', 'Snorlax', 'Garchomp', 'Gengar', 'Lucario', 'Salamence'];
   const dist = bm.prior(unknown, []);
   const i1 = BenchModel.inclusion(dist, [0]);

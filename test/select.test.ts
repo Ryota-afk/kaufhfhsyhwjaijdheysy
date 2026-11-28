@@ -59,7 +59,7 @@ import { pickOf, indexOf, TRIOS } from '../src/select/cell.ts';
 import { spotSolve } from '../src/select/spot.ts';
 import { partyKey } from '../src/select/key.ts';
 
-test('行・列の番号：20通りの3体×先発3通り＝60。番号と（3体, 先発）が行き来できる', () => {
+test('行・列の番号：20通りの3匹×先発3通り＝60。番号と（3匹, 先発）が行き来できる', () => {
   assert.equal(TRIOS.length, 20);
   for (let k = 0; k < 60; k++) { const p = pickOf(k); assert.equal(indexOf(p.trio, p.lead), k); assert.equal(p.order[0], p.lead); }
 });
@@ -81,7 +81,7 @@ test('試合を足す順番：まず全部のマスを n0 試合、その後は�
 });
 
 test('相性の見積もり：種族どうしの相性で作った表から学ぶと、学んでいない並びの構築の表も見積もれる', () => {
-  // こちらの体 i と相手の種族 s の相性 h(i, s)。勝率 = sig(平均の相性)
+  // こちらのポケモン i と相手の種族 s の相性 h(i, s)。勝率 = sig(平均の相性)
   const sp = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   const h = (i: number, s: string) => Math.sin(i * 7 + s.charCodeAt(0)) * 1.2;
   const sig = (x: number) => 1 / (1 + Math.exp(-x));
@@ -117,7 +117,7 @@ test('パーティの目印：名前や印を変えても同じ、型を変え�
 
 test('相性の見積もり＋少しの試合で作った表でも、釣り合いを正しく解く（2026-11-27 に本物の見積もりで、回り続けて誤った値 -91% を出した例）', async () => {
   const { readFileSync } = await import('node:fs');
-  // その日の相性の見積もり（チーム2）と、表のない8位の構築の6体
+  // その日の相性の見積もり（チーム2）と、表のない8位の構築の6匹
   const model = JSON.parse(readFileSync('test/fixtures/model-team2-20261127.json', 'utf8'));
   const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8'));
   const species = teams.find((t: any) => t.rank === 8).mons.map((m: any) => m.species);

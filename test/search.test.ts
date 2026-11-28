@@ -15,7 +15,7 @@ const toID = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 const set = (m: any) => ({ species: m.species, item: toID(m.item), ability: toID(m.ability), nature: m.nature, evs: m.evs, moves: m.moves.map(toID) });
 let seed = 1; const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 
-test('探索：相手の最後の1体（HP30%のドドゲザン）を格闘技で倒せる場面では、格闘技を選ぶ', () => {
+test('探索：相手の最後の1匹（HP30%のドドゲザン）を格闘技で倒せる場面では、格闘技を選ぶ', () => {
   const lucario = party.find((m: any) => m.species === 'Lucario');
   const kingambit = { species: 'Kingambit', item: 'leftovers', ability: 'supremeoverlord', nature: 'Adamant', evs: { hp: 32, atk: 32, def: 0, spa: 0, spd: 2, spe: 0 }, moves: ['kowtowcleave', 'suckerpunch', 'ironhead', 'swordsdance'] };
   const pos: Position = { sides: [

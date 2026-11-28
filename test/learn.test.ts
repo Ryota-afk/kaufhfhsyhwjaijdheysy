@@ -29,7 +29,7 @@ test('型の割合：記録1件＝上位構築1件分として、決めた式ど
   assert.equal(mergeEntry(e, undefined), e);
 });
 
-test('選出の傾向：記録1件＝上位構築1件分として、種族の割合と構築の3体の組に足される', () => {
+test('選出の傾向：記録1件＝上位構築1件分として、種族の割合と構築の3匹の組に足される', () => {
   const teams = JSON.parse(readFileSync('data/seed/teams_m7.json', 'utf8'));
   const sels = JSON.parse(readFileSync('data/seed/selections_m7.json', 'utf8'));
   const b0 = new BenchModel(teams, sels);

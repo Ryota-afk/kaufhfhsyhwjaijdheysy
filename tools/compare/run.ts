@@ -113,7 +113,7 @@ L.push('# エンジンと Showdown の照合結果', '');
 L.push(`- 実行日：${new Date().toISOString().slice(0, 10)}`);
 L.push(`- 基準：Pokémon Showdown コミット ${showdownCommit()}、形式 ${FORMAT}（速さの層なし）`);
 L.push('- 比べる相手：エンジン（同じ Showdown に速さの層を当て、盤面を作った後に速い複製をして、複製の上で打つ）');
-L.push(`- 盤面：${jobs.length} 通り（ランダムに作成。作成に失敗して作り直した盤面：${buildFail}）。上位構築 ${teams.length} 件（Showdown の検査を通るもの）から3体ずつ`);
+L.push(`- 盤面：${jobs.length} 通り（ランダムに作成。作成に失敗して作り直した盤面：${buildFail}）。上位構築 ${teams.length} 件（Showdown の検査を通るもの）から3匹ずつ`);
 L.push(`- 1つの盤面につき乱数の種 ${NSEED} 通り × 最大 ${NTURN} ターン（2ターン目以降の行動は種から決まる番号で選ぶ）。打った回数：${runs}、ターン数：${turnsPlayed}`);
 L.push(`- 時間：${((Date.now() - t0) / 1000).toFixed(0)} 秒`, '');
 L.push('## 結果', '');

@@ -2,8 +2,8 @@
 //   npx tsx tools/select/precompute.ts --party .build/party-test.json --out .build/pc-test --ranks 1,3 --iters 5 --n0 1 --levels '' --minutes 10
 //   npx tsx tools/select/finish.ts --root .build/pc-test
 // 次を確かめる：
-//  1. 表を保存した構築（1位）の6体を入れると、すぐに選出の確率の表と勝率が出て、くじの結果が準備欄に入る
-//  2. 表のない構築の6体を入れると、近い構築からの見積もり＋その場の試合で、決めた時間の中で表が出る
+//  1. 表を保存した構築（1位）の6匹を入れると、すぐに選出の確率の表と勝率が出て、くじの結果が準備欄に入る
+//  2. 表のない構築の6匹を入れると、近い構築からの見積もり＋その場の試合で、決めた時間の中で表が出る
 //  3. ページのエラーがない
 // 使い方：npx tsx tools/browser/select-e2e.ts [その場の計算の秒数=0（すぐ出す）]
 import { spawn } from 'node:child_process';
@@ -62,8 +62,8 @@ let r = await readResult();
 console.log(`1位の構築：${((Date.now() - t0) / 1000).toFixed(1)}秒\n${r.text}`);
 check(/保存した表/.test(r.text) && r.rows >= 1, '保存した表から、選出の確率の表が出た');
 check(valueOk(r.text), '釣り合いの勝率が0〜100%');
-check(r.picks.length === 3 && r.picks.includes(r.lead), `くじの結果が準備欄に入った（3体 ${r.picks}、先発 ${r.lead}）`);
-check(megaOk(r.picks), `くじの3体に、メガストーンを持つポケモン（${megaIdx}）がちょうど1匹`);
+check(r.picks.length === 3 && r.picks.includes(r.lead), `くじの結果が準備欄に入った（3匹 ${r.picks}、先発 ${r.lead}）`);
+check(megaOk(r.picks), `くじの3匹に、メガストーンを持つポケモン（${megaIdx}）がちょうど1匹`);
 check(Date.now() - t0 < 10000, '表のある構築は10秒以内に出た');
 
 // 2. 表のない構築（5位）
@@ -82,7 +82,7 @@ if (SECS > 0) {
   check(sec < 5, `すぐに出た（${sec.toFixed(1)}秒）`);
 }
 check(r.picks.length === 3 && r.picks.includes(r.lead), 'くじの結果が準備欄に入った');
-check(megaOk(r.picks), 'くじの3体に、メガストーンを持つポケモンがちょうど1匹');
+check(megaOk(r.picks), 'くじの3匹に、メガストーンを持つポケモンがちょうど1匹');
 check(valueOk(r.text), '釣り合いの勝率が0〜100%');
 
 await page.screenshot({ path: '.build/select.png', fullPage: true });

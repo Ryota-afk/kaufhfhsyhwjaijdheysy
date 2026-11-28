@@ -14,4 +14,4 @@ for (const t of c.teams) {
   if (a === b) lineup++; else console.log(`違う ${t.rank}位：公開データ ${a} ／ 今 ${b}`);
   for (const m of t.mons) { const sm = s.mons.find((x: any) => toID(x.species) === m.species); if (!sm) continue; monItems++; if (toID(sm.item) === m.item) monItemsSame++; }
 }
-console.log(`同じ順位の構築 ${n}、6体が一致 ${lineup}。同じ体の持ち物 ${monItems} のうち一致 ${monItemsSame}`);
+console.log(`同じ順位の構築 ${n}、6匹が一致 ${lineup}。同じポケモンの持ち物 ${monItems} のうち一致 ${monItemsSame}`);

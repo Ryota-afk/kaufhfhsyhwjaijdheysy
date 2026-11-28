@@ -30,7 +30,7 @@ test('検査：同じポケモン・同じ持ち物・能力ポイントの合�
   const texts = checkParty(mons, info, ja, toID).map(p => p.text).join('\n');
   assert.match(texts, /同じ持ち物は1つまで/);
   assert.match(texts, /合計が 98/);
-  assert.match(texts, /同じポケモンは1体まで/);
+  assert.match(texts, /同じポケモンは1匹まで/);
 });
 
 test('GitHub への書き込み：新しいファイルは sha なし、上書きは sha つきで PUT する', async () => {

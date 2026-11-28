@@ -18,7 +18,7 @@ export function makeCalc(PS: any, FORMAT: string) {
   const dex = PS.Dex.forFormat(FORMAT);
   const clone = makeCloner(dex, PS.Pokemon);
 
-  /** 盤面 pos の、相手側 oppSide の場の1体を候補 c に置き換えた盤面。 */
+  /** 盤面 pos の、相手側 oppSide の場の1匹を候補 c に置き換えた盤面。 */
   function withCandidate(pos: Position, oppSide: 0 | 1, species: string, c: { item: string; ability: string; nature: string; evs: any; moves: string[] }): Position {
     const p: Position = JSON.parse(JSON.stringify(pos));
     const s = p.sides[oppSide];
@@ -85,7 +85,7 @@ export function makeCalc(PS: any, FORMAT: string) {
 
   /**
    * 手がかり：素早さの順番。こちらの技 ourMove と相手の技 oppMove で、相手が先に動いた（oppFirst）か。
-   * pos はそのターンの初めの盤面（相手の場の1体は候補で置き換える）。
+   * pos はそのターンの初めの盤面（相手の場の1匹は候補で置き換える）。
    */
   function clueOrder(pos: Position, ourSide: 0 | 1, species: string, ourMove: string, oppMove: string, oppFirst: boolean): Clue {
     const cache = new Map<string, number>();

@@ -6,12 +6,12 @@ Showdown のコミット c7fa6f16503de510c319239b5b2d29d4f7abd8c4、形式 gen9c
 - 選出データの数：184（記事に選出の情報があるもの：167）
 - 選出データの順位で、構築にないもの：なし
 - 記事URLが同じ構築：4 組
-  - 順位 25, 53（6体が同じ）：https://sibakentomodachi.livedoor.blog/archives/1084584339.html
-  - 順位 101, 228（6体が同じ）：https://note.com/ashinagatoon/n/na84843a6c6eb?sub_rt=share_pw
-  - 順位 691, 899（6体が同じ）：https://arisayapoke0195.hatenablog.com/entry/2026/11/04/231515
-  - 順位 719, 855（6体が同じ）：https://note.com/jolly_shark9509/n/n2c0e69336b5f?sub_rt=share_pb
+  - 順位 25, 53（6匹が同じ）：https://sibakentomodachi.livedoor.blog/archives/1084584339.html
+  - 順位 101, 228（6匹が同じ）：https://note.com/ashinagatoon/n/na84843a6c6eb?sub_rt=share_pw
+  - 順位 691, 899（6匹が同じ）：https://arisayapoke0195.hatenablog.com/entry/2026/11/04/231515
+  - 順位 719, 855（6匹が同じ）：https://note.com/jolly_shark9509/n/n2c0e69336b5f?sub_rt=share_pb
 - 記事URLがない構築：3, 13, 47, 87, 97, 104, 124, 164, 175, 193, 200, 206, 238, 241, 256, 257, 261, 265, 277, 278, 289, 297
-- 能力ポイントの合計が66でないもの：5 体
+- 能力ポイントの合計が66でないもの：5 匹
   - 合計65：68位 カメックス、239位 ヒートロトム、285位 ガルーラ、965位 ボーマンダ
   - 合計32：823位 メタモン
 - 技が4つ未満：151位 メタモン（1つ）、234位 メタモン（1つ）、544位 メタモン（1つ）、817位 メタモン（1つ）、823位 メタモン（1つ）
@@ -28,4 +28,4 @@ Showdown のコミット c7fa6f16503de510c319239b5b2d29d4f7abd8c4、形式 gen9c
 
 問題なし：199 構築、問題あり：7 構築。
 
-特性が空の個体は、エンジンでは Showdown の種族の最初の特性として扱う予定（未確定）。
+特性が空のポケモンは、エンジンでは Showdown の種族の最初の特性として扱う予定（未確定）。

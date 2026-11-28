@@ -8,11 +8,11 @@ const toID = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 export const SMOGON_FORMAT = 'gen9championsbssregmc', SMOGON_CUTOFF = 1760;
 
 export interface SmogonSpecies {
-  count: number;                                  // 体の数（重みつき）
+  count: number;                                  // ポケモンの数（重みつき）
   items: Record<string, number>;                  // 持ち物 id → 重み
   abilities: Record<string, number>;              // 特性 id → 重み（メガシンカしていない姿の分だけ）
   spreads: Record<string, number>;                // 「性格:hp/atk/def/spa/spd/spe」→ 重み
-  moves: Record<string, number>;                  // 技 id → 重み（体の数で割ると採用率）
+  moves: Record<string, number>;                  // 技 id → 重み（ポケモンの数で割ると採用率）
   byItem: Record<string, { moves: Record<string, number>; spreads: Record<string, number>; count: number }>;   // メガストーンごとの技と能力ポイント
 }
 

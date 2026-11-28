@@ -1,7 +1,7 @@
 // 対戦記録1件の数え方：記録係で最初から当て直し、対戦の終わりの推定を「記録1件＝上位構築1件分」として数える。
-// - 出てきた相手の体ごとに、型の確率（合計1）を足す。
-// - 相手の6体それぞれが選出に入っていた確率を足す（出てきた体は1）。
-// - 相手の6体が上位構築と同じなら、その構築の3体の組の確率（構築の並びの番号）も足す。
+// - 出てきた相手のポケモンごとに、型の確率（合計1）を足す。
+// - 相手の6匹それぞれが選出に入っていた確率を足す（出てきたポケモンは1）。
+// - 相手の6匹が上位構築と同じなら、その構築の3匹の組の確率（構築の並びの番号）も足す。
 // 推定は、記録を数える前の最初の確率（上位構築のデータだけ）で行う（数えた割合が次の数え方に戻らないように）。
 import { BenchModel } from '../infer/bench.ts';
 import { seedKey, itemKey, spreadKey, emptyLearned, type Learned } from './merge.ts';
@@ -30,14 +30,14 @@ export function addAnalyzer(learned: Learned, an: any, teams: any[], dex: any, p
       l.spreads[sk] = (l.spreads[sk] ?? 0) + p;
     });
   }
-  // 選出：見えた体を条件にした、各体が選出に入っていた確率
+  // 選出：見えたポケモンを条件にした、各ポケモンが選出に入っていた確率
   const inc = BenchModel.inclusion(an.benchDist, seen);
   species.forEach((sp, i) => {
     const id = toID(sp);
     const r = learned.bench.rates[id] ?? (learned.bench.rates[id] = [0, 0]);
     r[0] += inc[i]; r[1]++;
   });
-  // 上位構築と同じ6体なら、3体の組（構築の並び）
+  // 上位構築と同じ6匹なら、3匹の組（構築の並び）
   const ids = species.map(toID);
   const same = teams.find((t: any) => t.mons.length === 6 && [...t.mons.map((m: any) => ids.indexOf(toID(m.species)))].sort().join(',') === '0,1,2,3,4,5');
   if (same) {

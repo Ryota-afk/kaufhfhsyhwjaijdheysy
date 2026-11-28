@@ -1,6 +1,6 @@
 // 近い構築の結果から、まだ表のない構築への選出の表を見積もる（種族どうしの相性の足し算）。
 // こちらのパーティを決めたうえで、マスの勝率を次の式で表し、保存したすべての表の試合結果に合わせる（重みつきロジスティック回帰）。
-//   logit(勝率) = b + Σ（こちらの3体 a × 相手の3体の種族 s）W[a][s] / 3 + V[こちらの先発][相手の先発の種族]
+//   logit(勝率) = b + Σ（こちらの3匹 a × 相手の3匹の種族 s）W[a][s] / 3 + V[こちらの先発][相手の先発の種族]
 // 相手の種族が保存した表に一度も出ていなければ、その種族の項は0（ほかの項だけで見積もる）。
 import { pickOf } from './cell.ts';
 import { SIZE, type TableStats } from './table.ts';
@@ -63,7 +63,7 @@ export function fitPairModel(tables: TrainTable[], opt: { epochs?: number; lr?: 
   return { b: bias[0], W, V, tables: tables.length, games };
 }
 
-/** 相手の6体の種族 species に対する、マス k の勝率の見積もり。 */
+/** 相手の6匹の種族 species に対する、マス k の勝率の見積もり。 */
 export function predictCell(m: PairModel, species: string[], k: number): number {
   const f = features(species, k);
   let z = m.b + (m.V[f.v[1]]?.[f.v[0]] ?? 0);

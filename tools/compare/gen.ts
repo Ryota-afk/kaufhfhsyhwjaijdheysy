@@ -1,4 +1,4 @@
-// ランダムな盤面を作る。上位構築（Showdown の検査を通るもの）から3体ずつ選び、HP・状態・能力変化・場の状態などを散らす。
+// ランダムな盤面を作る。上位構築（Showdown の検査を通るもの）から3匹ずつ選び、HP・状態・能力変化・場の状態などを散らす。
 import type { Position, PosMon, PosSide, StatusID } from '../../src/engine/position.ts';
 import { toID } from '../../src/engine/position.ts';
 
@@ -28,11 +28,11 @@ export function genPosition(rng: Rng, teams: any[], dex: any): Position {
 function genSide(rng: Rng, team: any, dex: any): PosSide {
   const idx = [0, 1, 2, 3, 4, 5].sort(() => rng.next() - 0.5).slice(0, 3);
   const mons: PosMon[] = idx.map(i => genMon(rng, team.mons[i], dex));
-  // 1体だけメガシンカ済みにすることがある
+  // 1匹だけメガシンカ済みにすることがある
   const megaable = mons.map((m, i) => [m, i] as const).filter(([m]) => dex.items.get(m.set.item).megaStone);
   let megaUsed = false;
   if (megaable.length && rng.chance(0.3)) { megaable[rng.int(megaable.length)][0].mega = true; megaUsed = true; }
-  // 倒れている控えを作ることがある（場の1体は必ず生きている）
+  // 倒れている控えを作ることがある（場の1匹は必ず生きている）
   const active = rng.int(3);
   for (let i = 0; i < 3; i++) if (i !== active && rng.chance(0.15)) { mons[i].hp = 0; mons[i].status = ''; }
   const cond: PosSide['cond'] = {};

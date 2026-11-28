@@ -5,7 +5,7 @@ export const STAT_JA: Record<StatID, string> = { hp: 'HP', atk: 'こうげき', 
 export const SP_MAX = 32;     // 能力ポイントの1つあたりの上限
 export const SP_TOTAL = 66;   // 能力ポイントの合計の上限
 
-/** 1体。名前は Showdown の英語名（data/seed と同じ形）。 */
+/** 1匹。名前は Showdown の英語名（data/seed と同じ形）。 */
 export interface PartyMon {
   species: string; item: string; ability: string; nature: string;
   evs: Record<StatID, number>; moves: string[]; gender?: 'M' | 'F' | '';
@@ -40,14 +40,14 @@ export interface Problem { slot: number | null; text: string }
 export function checkParty(mons: PartyMon[], info: (species: string) => MonInfo | undefined, ja: (kind: string, name: string) => string, toID: (s: string) => string): Problem[] {
   const out: Problem[] = [];
   const filled = mons.filter(m => m.species);
-  if (filled.length !== 6) out.push({ slot: null, text: `ポケモンが ${filled.length} 体です。6体入れてください。` });
+  if (filled.length !== 6) out.push({ slot: null, text: `ポケモンが ${filled.length} 匹です。6匹入れてください。` });
   const seenSpecies = new Map<string, number>(), seenItem = new Map<string, number>();
   mons.forEach((m, i) => {
     if (!m.species) return;
     const inf = info(m.species);
     if (!inf) { out.push({ slot: i, text: `「${m.species}」はチャンピオンズで使えないか、名前が分かりません。` }); return; }
     const base = toID(m.species);
-    if (seenSpecies.has(base)) out.push({ slot: i, text: `${ja('species', m.species)} が2体います（同じポケモンは1体まで）。` });
+    if (seenSpecies.has(base)) out.push({ slot: i, text: `${ja('species', m.species)} が2匹います（同じポケモンは1匹まで）。` });
     seenSpecies.set(base, i);
     if (m.item) {
       const it = toID(m.item);

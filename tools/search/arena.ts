@@ -2,7 +2,7 @@
 // 使い方：npx tsx tools/search/arena.ts A B 試合数 探索の回数 [種=1]
 //   A・B：random（ランダム）、greedy（威力×相性×タイプ一致が最大の技）、mcts（探索。相手の本当の型を知っている前提）
 // 結果：A の勝率と、95%の幅（±2×標準誤差）。.build/arena-A-B-回数.json にも書く。
-// 先手・後手の差が出ないよう、A は試合の半分で p1、残りで p2。チームは上位構築から無作為、選出も無作為（3体と先発）。
+// 先手・後手の差が出ないよう、A は試合の半分で p1、残りで p2。チームは上位構築から無作為、選出も無作為（3匹と先発）。
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { loadShowdown, FORMAT } from '../showdown/load.ts';
 import { applySpeedLayer } from '../../src/engine/fast.ts';

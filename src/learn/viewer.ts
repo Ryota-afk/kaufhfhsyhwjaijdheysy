@@ -7,16 +7,16 @@ import { shownPercent } from '../infer/calc.ts';
 
 export interface SideView {
   side: 0 | 1;
-  mySets: { species: string }[];        // 自分の3体（盤面の並び）
-  foeSpecies: string[];                 // 相手の6体（構築の並び）
+  mySets: { species: string }[];        // 自分の3匹（盤面の並び）
+  foeSpecies: string[];                 // 相手の6匹（構築の並び）
   foeIdx: number[];                     // 相手の盤面の並び → 構築の番号
 }
 
 /**
- * ターンの記録の行 lines から、相手の場の体の持ち物・特性の表示を拾う。Showdown の記録の読み方：
- *  - 「|-ability|体|特性」：その体の特性。「[from] ability: X」がついていれば、その体の本当の特性は X（トレース等。表示の特性は写したもの）
- *  - それ以外の行の「[from] ability: X|[of] 体」：[of] の体の特性が X（さめはだ等）。[of] がなければ行の最初の体
- *  - 「|-item|体|持ち物」「|-enditem|体|持ち物」、「[from] item: X」：持ち物は行の最初の体（[of] があればその体）のもの
+ * ターンの記録の行 lines から、相手の場のポケモンの持ち物・特性の表示を拾う。Showdown の記録の読み方：
+ *  - 「|-ability|ポケモン|特性」：そのポケモンの特性。「[from] ability: X」がついていれば、そのポケモンの本当の特性は X（トレース等。表示の特性は写したもの）
+ *  - それ以外の行の「[from] ability: X|[of] ポケモン」：[of] のポケモンの特性が X（さめはだ等）。[of] がなければ行の最初のポケモン
+ *  - 「|-item|ポケモン|持ち物」「|-enditem|ポケモン|持ち物」、「[from] item: X」：持ち物は行の最初のポケモン（[of] があればそのポケモン）のもの
  */
 export function revealFoe(dex: any, lines: string[], side: 0 | 1, foeActiveSpecies: string) {
   const foe = side === 0 ? 'p2' : 'p1';
@@ -43,7 +43,7 @@ export function revealFoe(dex: any, lines: string[], side: 0 | 1, foeActiveSpeci
 
 /**
  * 1ターン分の入力を作る。b は本当の対戦（Showdown）、lines はそのターンの記録の行、mine / foe は両者が選んだ行動（盤面の並び）、
- * foeActiveBefore はターンの始めの相手の場の体。
+ * foeActiveBefore はターンの始めの相手の場のポケモン。
  */
 export function sideTurnInput(dex: any, b: any, v: SideView, lines: string[], mine: Action | null, foe: Action | null, foeActiveBefore: any): TurnInput {
   const s = v.side, me = s === 0 ? 'p1' : 'p2', them = s === 0 ? 'p2' : 'p1';
@@ -70,7 +70,7 @@ export function sideTurnInput(dex: any, b: any, v: SideView, lines: string[], mi
     ourMega: lines.some(l => l.startsWith(`|-mega|${me}a`)), oppMega: lines.some(l => l.startsWith(`|-mega|${them}a`)),
     after: { ourActive, ourHp: ma.hp, ourStatus: (ma.status || '') as StatusID, oppActive, oppHpPct: shownPercent(fa.hp, fa.maxhp), oppStatus: (fa.status || '') as StatusID, ourHps },
   };
-  // そのターンに場にいた相手の体のうち、ターンの後の場の体以外（交代・とんぼがえり・ドラゴンテール・にげごし・倒れた等）の HP%：画面で見えていた値
+  // そのターンに場にいた相手のポケモンのうち、ターンの後の場のポケモン以外（交代・とんぼがえり・ドラゴンテール・にげごし・倒れた等）の HP%：画面で見えていた値
   const onField = new Set<any>([foeActiveBefore]);
   for (const l of lines) { const m = new RegExp(`^\\|(?:switch|drag|replace)\\|${them}a: `).exec(l); if (m) { const p = foeSide.active[0] && foeSide.pokemon.find((q: any) => l.includes(`|${q.species.name},`) || l.includes(`|${q.baseSpecies.name},`) || l.split('|')[3]?.startsWith(q.species.name)); if (p) onField.add(p); } }
   const others: Record<number, number> = {};

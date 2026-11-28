@@ -1,4 +1,4 @@
-// 結果の予想（記録係の predict）：交代技（ボルトチェンジ）の交代先と、先手・後手で、どの体がダメージを受けるかが変わること。
+// 結果の予想（記録係の predict）：交代技（ボルトチェンジ）の交代先と、先手・後手で、どのポケモンがダメージを受けるかが変わること。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -23,19 +23,19 @@ const volt = ours[0].moves.indexOf('voltswitch');
 const input = { ours: { kind: 'move' as const, slot: volt }, opp: { kind: 'move' as const, move: 'dracometeor' } };
 const full = (an: any, k: number) => an.pos.sides[0].mons[k].hp;
 
-test('交代技：先にボルトチェンジを打ったら、相手の攻撃は出てきた体（決めた交代先）が受ける', () => {
+test('交代技：先にボルトチェンジを打ったら、相手の攻撃は出てきたポケモン（決めた交代先）が受ける', () => {
   const an = make();
   for (const to of [1, 2]) {
     const p = an.predict(input, 24, { ourTo: to, first: 'us' })!;
     assert.equal(p.ourActive, to, `交代先 ${to}`);
     assert.equal(p.ourHps[0], full(an, 0), '下がったヒートロトムは無傷');
-    assert.ok(p.ourHps[to] < full(an, to), `出てきた体 ${to} がダメージを受ける`);
+    assert.ok(p.ourHps[to] < full(an, to), `出てきたポケモン ${to} がダメージを受ける`);
     const other = 3 - to;
-    assert.equal(p.ourHps[other], full(an, other), '控えのままの体は無傷');
+    assert.equal(p.ourHps[other], full(an, other), '控えのままのポケモンは無傷');
   }
 });
 
-test('交代技：後からボルトチェンジを打ったら、相手の攻撃は下がる前の体が受け、出てきた体は無傷', () => {
+test('交代技：後からボルトチェンジを打ったら、相手の攻撃は下がる前のポケモンが受け、出てきたポケモンは無傷', () => {
   const an = make();
   const p = an.predict(input, 24, { ourTo: 2, first: 'them' })!;
   assert.equal(p.ourActive, 2);

@@ -1,5 +1,5 @@
 // 新しいシーズンの上位構築を取り込み、data/seed/teams_m{n}.json を作る（指示文 4-6.、docs/season-import.md）。
-//  1. 6体・持ち物・順位：バトルデータベース チャンピオンズの公開データ（1シーズン1回取得）
+//  1. 6匹・持ち物・順位：バトルデータベース チャンピオンズの公開データ（1シーズン1回取得）
 //  2. 技・特性・性格・能力ポイントの補い（利用者が決めた順番）：
 //     ① 前のシーズンまでの実際の型（記事から取ったもの。補った型は使わない）で、同じ種族・同じ持ち物のもの
 //     ② Smogon の統計（メガストーンを持つときは、そのメガシンカ後の姿の統計）
@@ -26,14 +26,14 @@ const current = JSON.parse(readFileSync('data/season/current.json', 'utf8'));
 const testSeason = arg('test') !== null ? Number(arg('test')) : null;
 let seasonNo = testSeason ?? (arg('season') !== null ? Number(arg('season')) : current.seasonNumber + 1);
 
-// 前のシーズンまでの実際の型（fill のない体だけ）
+// 前のシーズンまでの実際の型（fill のないポケモンだけ）
 const realTeams: { file: string; teams: any[] }[] = [current.teams, ...current.previous].filter((f: string) => existsSync(f)).map((f: string) => ({ file: f, teams: JSON.parse(readFileSync(f, 'utf8')) }));
 
 const raw = await fetchSeasonOnce(seasonNo);
 if (!raw) { console.log(`シーズン${seasonNo}の公開データはまだありません`); process.exit(0); }
 if (testSeason === null && arg('auto') !== null && existsSync(`data/seed/teams_m${seasonNo}.json`)) { console.log(`シーズン${seasonNo}は取り込み済み`); process.exit(0); }
 const conv = convertSeason(raw, ja);
-if (conv.unresolved.length) console.log('直せなかった名前（その体は取り込まない）：', conv.unresolved);
+if (conv.unresolved.length) console.log('直せなかった名前（そのポケモンは取り込まない）：', conv.unresolved);
 const smogonFile = testSeason !== null || process.env.SEASON_DRYRUN ? current.smogon : await fetchLatestSmogon();
 const smogon = loadSmogon(smogonFile);
 console.log(`${conv.season}：構築 ${conv.teams.length}。Smogon の統計 ${smogonFile}`);
@@ -42,7 +42,7 @@ const nameOf = { species: (id: string) => dex.species.get(id).name, item: (id: s
 const STATS = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'] as const;
 const most = <T,>(xs: T[], key: (x: T) => string): T | undefined => { const c = new Map<string, { x: T; n: number }>(); for (const x of xs) { const k = key(x); const e = c.get(k) ?? { x, n: 0 }; e.n++; c.set(k, e); } return [...c.values()].sort((a, b) => b.n - a.n)[0]?.x; };
 
-/** 1体の型を補う。exclude：確かめのとき、同じ構築（順位）の型を①から除く。 */
+/** 1匹の型を補う。exclude：確かめのとき、同じ構築（順位）の型を①から除く。 */
 function fill(speciesId: string, itemId: string, exclude: { file: string; rank: number } | null) {
   const sp = dex.species.get(speciesId);
   // ① 前のシーズンまでの実際の型（同じ種族・同じ持ち物）
@@ -90,7 +90,7 @@ for (const t of conv.teams) {
   teamsOut.push({ rank: t.rank, season: conv.season, rating: t.rating, article_url: '', source: 'champs.pokedb.tokyo 公開データ＋補い', mons });
 }
 const total = srcCount.prev + srcCount.smogon + srcCount.showdown;
-console.log(`補いの出どころ：①前のシーズンの実際の型 ${srcCount.prev}、②Smogon ${srcCount.smogon}、③Showdown の型データ ${srcCount.showdown}（計 ${total} 体）`);
+console.log(`補いの出どころ：①前のシーズンの実際の型 ${srcCount.prev}、②Smogon ${srcCount.smogon}、③Showdown の型データ ${srcCount.showdown}（計 ${total} 匹）`);
 console.log(`Showdown の検査を通らない構築 ${invalid}/${teamsOut.length}`, invalidSamples);
 
 if (testSeason !== null) {
@@ -109,7 +109,7 @@ if (testSeason !== null) {
       const rm = new Set(r.moves.map(toID)); a.moves += m.moves.filter((x: string) => rm.has(toID(x))).length;
     }
   }
-  for (const [src, a] of Object.entries(acc)) console.log(`確かめ（${src}、${a.n}体）：特性 ${(a.ability / a.n * 100).toFixed(0)}%、性格 ${(a.nature / a.n * 100).toFixed(0)}%、能力ポイントが完全に同じ ${(a.evs / a.n * 100).toFixed(0)}%、技4つのうち ${(a.moves / a.n).toFixed(2)}個`);
+  for (const [src, a] of Object.entries(acc)) console.log(`確かめ（${src}、${a.n}匹）：特性 ${(a.ability / a.n * 100).toFixed(0)}%、性格 ${(a.nature / a.n * 100).toFixed(0)}%、能力ポイントが完全に同じ ${(a.evs / a.n * 100).toFixed(0)}%、技4つのうち ${(a.moves / a.n).toFixed(2)}個`);
   writeFileSync('.build/import-test.json', JSON.stringify(teamsOut, null, 1));
 } else {
   writeFileSync(seedFile, JSON.stringify(teamsOut, null, 1));

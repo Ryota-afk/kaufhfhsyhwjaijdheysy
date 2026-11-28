@@ -10,7 +10,7 @@ export interface MonSet {
   evs: Record<StatID, number>; moves: string[];
 }
 
-/** 盤面の1体。 */
+/** 盤面の1匹。 */
 export interface PosMon {
   set: MonSet;
   hp: number;                 // 今のHP（実数）
@@ -37,7 +37,7 @@ export interface PosVolatiles {
 }
 
 export interface PosSide {
-  mons: PosMon[];             // 選出した3体（並びは固定。番号で呼ぶ）
+  mons: PosMon[];             // 選出した3匹（並びは固定。番号で呼ぶ）
   active: number;             // 場に出ている番号
   megaUsed?: boolean;
   cond?: {

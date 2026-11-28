@@ -2,8 +2,8 @@
 // 画面と同じ入力の流れにする：
 //  - こちらが倒れたら、ターンは「倒れたまま（交代先はまだ）」で記録し、交代先は死に出し（replace）で記録する
 //  - 相手だけが倒れたら、相手の交代先はターンの入力に入れる（画面ではターンの終わりに見える）
-//  - 倒れた後の交代先は無作為に選ぶ（番号の若い体とは限らない）。場から下がった相手の体の HP% も入れる
-// 見るもの：場の体（両方）、こちらの3体の HP、相手の見えた体の HP% と倒れたか、死に出しの場面の判定、決着の判定
+//  - 倒れた後の交代先は無作為に選ぶ（番号の若いポケモンとは限らない）。場から下がった相手のポケモンの HP% も入れる
+// 見るもの：場のポケモン（両方）、こちらの3匹の HP、相手の見えたポケモンの HP% と倒れたか、死に出しの場面の判定、決着の判定
 // 使い方：npx tsx tools/battle/flow-check.ts [試合数=20] [種=1] [交代技を選ぶ割合=0]
 //   交代技を選ぶ割合（0〜1）：ボルトチェンジ・とんぼがえり等の、打った後に交代する技を選べるとき、この割合で選ぶ
 import { readFileSync } from 'node:fs';
@@ -57,7 +57,7 @@ for (let g = 0; g < GAMES; g++) {
   const compare = (where: string) => {
     const us = an.pos.sides[0];
     const ta = b.sides[0].active[0], tIdx = ours.findIndex(o => base(o.species) === ta.baseSpecies.baseSpecies);
-    if (us.active !== tIdx) note('こちらの場の体', `${where} 記録係 ${us.active} ／ 本当 ${tIdx}`);
+    if (us.active !== tIdx) note('こちらの場のポケモン', `${where} 記録係 ${us.active} ／ 本当 ${tIdx}`);
     const th = ourHpsTruth(), ah = us.mons.map(m => m.hp);
     if (JSON.stringify(th) !== JSON.stringify(ah)) note('こちらの HP', `${where} 記録係 ${JSON.stringify(ah)} ／ 本当 ${JSON.stringify(th)}`);
     // 場の状態（画面で「今の状態」を直さない使い方：NOVIS=1 のとき）：まきびし類・壁・おいかぜ、天気・フィールド・トリックルーム、
@@ -79,7 +79,7 @@ for (let g = 0; g < GAMES; g++) {
       }
     }
     const oa = an.oppOrder[an.pos.sides[1].active], toa = oppIdxOf(b.sides[1].active[0]);
-    if (oa !== toa) note('相手の場の体', `${where} 記録係 ${oppSpecies[oa]} ／ 本当 ${oppSpecies[toa]}`);
+    if (oa !== toa) note('相手の場のポケモン', `${where} 記録係 ${oppSpecies[oa]} ／ 本当 ${oppSpecies[toa]}`);
     for (const p of b.sides[1].pokemon) {
       const i = oppIdxOf(p); if (!an.opp[i].seen) continue;
       const pct = shownPercent(p.hp, p.maxhp);
@@ -105,9 +105,9 @@ for (let g = 0; g < GAMES; g++) {
     while (!b.ended && b.requestState === 'switch' && guard++ < 6) {
       const ourNeeds = !!b.sides[0].activeRequest?.forceSwitch, oppNeeds = !!b.sides[1].activeRequest?.forceSwitch;
       const ourFainted = b.sides[0].active[0].fainted;
-      // こちらの場の体が倒れた → ターンは倒れたまま記録して、死に出しで交代先を入れる（ここで止める）
+      // こちらの場のポケモンが倒れた → ターンは倒れたまま記録して、死に出しで交代先を入れる（ここで止める）
       if (ourNeeds && ourFainted) break;
-      // 相手の場の体が倒れた（こちらは倒れていない）→ 相手は交代先を出す（画面ではターンの終わりに見える）
+      // 相手の場のポケモンが倒れた（こちらは倒れていない）→ 相手は交代先を出す（画面ではターンの終わりに見える）
       if (oppNeeds && !ourNeeds && b.sides[1].active[0].fainted) { b.choose('p2', truth.choiceString(1, pick(truth.legalActions(1)))); continue; }
       // とんぼがえり等のターンの途中の交代
       if (ourNeeds) b.choose('p1', truth.choiceString(0, pick(truth.legalActions(0))));

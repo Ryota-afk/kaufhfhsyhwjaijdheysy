@@ -1,7 +1,7 @@
 // バトルデータベース チャンピオンズ（https://champs.pokedb.tokyo/）の上位構築の公開データを、このサイトの形に直す。
 // 公開データの案内（https://champs.pokedb.tokyo/guide/opendata）：「プログラムなどを利用してデータをダウンロードすることは可能」、
 // 「ご自身のサーバーにファイルを一度ダウンロードしてから利用」。そのため、シーズンごとに1回だけ取得し、data/season/raw/ に置いて使う。
-// 中身は順位・レート・6体の種族と姿・持ち物だけ（技・特性・性格・能力ポイント・記事のURLはない）。
+// 中身は順位・レート・6匹の種族と姿・持ち物だけ（技・特性・性格・能力ポイント・記事のURLはない）。
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const kata = (s: string) => s.normalize('NFKC').replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60)).replace(/[\s　]/g, '');
@@ -35,7 +35,7 @@ export function makeNameLookup(ja: any) {
   return { speciesOf, itemOf };
 }
 
-/** 公開データ1シーズン分を、順位・6体（Showdown の id）・持ち物に直す。直せなかった名前は unresolved に入れる。 */
+/** 公開データ1シーズン分を、順位・6匹（Showdown の id）・持ち物に直す。直せなかった名前は unresolved に入れる。 */
 export function convertSeason(d: DbSeason, ja: any) {
   const { speciesOf, itemOf } = makeNameLookup(ja);
   const unresolved: string[] = [];

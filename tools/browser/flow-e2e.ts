@@ -1,7 +1,7 @@
 // 対戦の画面の流れの確かめ（Playwright、Chromium）。先に npm run build が必要。
 // Node で Showdown の対戦を決着まで本当に打ち、利用者と同じ操作で画面に入れていく。倒れた後の交代先は無作為に選び、
 // こちらが倒れたら死に出しの画面で入れる。毎回、画面の状態（記録係の盤面）が本当と一致するかを見る：
-//   場の体（両方）、こちらの3体の HP、相手の見えた体の HP% と倒れたか、死に出しの場面か、決着したか。ページのエラーがないか。
+//   場のポケモン（両方）、こちらの3匹の HP、相手の見えたポケモンの HP% と倒れたか、死に出しの場面か、決着したか。ページのエラーがないか。
 // 使い方：npx tsx tools/browser/flow-e2e.ts [試合数=3] [種=1] [計算の秒数=2] [交代技を選ぶ割合=0]
 import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -58,7 +58,7 @@ for (let g = 0; g < GAMES; g++) {
   for (let i = 0; i < 6; i++) { const want = picks.includes(i); if ((await page.isChecked(`.s-pick[data-i="${i}"]`)) !== want) await page.click(`.s-pick[data-i="${i}"]`); }
   await page.check(`input[name="s-lead"][value="${lead}"]`);
   await page.click(`input[name="s-opplead"][value="${oppPicks[0]}"]`);
-  // 本当の対戦：こちらは選んだ3体（番号の順）、先発は lead
+  // 本当の対戦：こちらは選んだ3匹（番号の順）、先発は lead
   const ours = picks.map(i => setOf(party[i]));
   const pos: Position = { sides: [
     { mons: ours.map(s => ({ set: s, hp: 999, status: '' as StatusID })), active: picks.indexOf(lead) },
@@ -77,11 +77,11 @@ for (let g = 0; g < GAMES; g++) {
   const compare = async (where: string) => {
     const v = await page.evaluate(() => { const w = (window as any).__battle; return { pos: w.view.pos, opp: w.view.opp, oppOrder: w.view.oppOrder, pending: w.view.pending ?? [] }; });
     const ta = ourIdxOf(b.sides[0].active[0]);
-    if (v.pos.sides[0].active !== ta) note('こちらの場の体', `${where} 画面 ${v.pos.sides[0].active} ／ 本当 ${ta}`);
+    if (v.pos.sides[0].active !== ta) note('こちらの場のポケモン', `${where} 画面 ${v.pos.sides[0].active} ／ 本当 ${ta}`);
     const ah = v.pos.sides[0].mons.map((m: any) => m.hp), th = truthHps();
     if (JSON.stringify(ah) !== JSON.stringify(th)) note('こちらの HP', `${where} 画面 ${JSON.stringify(ah)} ／ 本当 ${JSON.stringify(th)}`);
     const oa = v.oppOrder[v.pos.sides[1].active], toa = oppIdxOf(b.sides[1].active[0]);
-    if (oa !== toa) { note('相手の場の体', `${where} 画面 ${oppSpecies[oa]} ／ 本当 ${oppSpecies[toa]}`); if (process.env.WHY_DUMP) writeFileSync(`${process.env.WHY_DUMP}/opp-${where.replace(/\s/g, '_')}.json`, await page.evaluate(() => localStorage.getItem('champions.currentBattle')) ?? ''); }
+    if (oa !== toa) { note('相手の場のポケモン', `${where} 画面 ${oppSpecies[oa]} ／ 本当 ${oppSpecies[toa]}`); if (process.env.WHY_DUMP) writeFileSync(`${process.env.WHY_DUMP}/opp-${where.replace(/\s/g, '_')}.json`, await page.evaluate(() => localStorage.getItem('champions.currentBattle')) ?? ''); }
     for (const p of b.sides[1].pokemon) {
       const i = oppIdxOf(p); if (!v.opp[i].seen) continue;
       const pct = shownPercent(p.hp, p.maxhp);
@@ -95,7 +95,7 @@ for (let g = 0; g < GAMES; g++) {
   const clickRadio = async (name: string, value: string) => { await page.click(`label:has(> input[name="${name}"][value="${value}"])`); ops++; };
   const setNum = async (sel: string, v: number) => { if (String(v) !== await page.$eval(sel, (x: any) => x.value)) { await page.fill(sel, String(v)); await page.dispatchEvent(sel, 'input'); ops++; } };
   const setSel = async (sel: string, v: string) => { if (v !== await page.$eval(sel, (x: any) => x.value)) { await page.selectOption(sel, v); ops++; return true; } return false; };
-  // 場の体を直すと、画面がその条件で予想し直す。予想が入り終わるまで待つ
+  // 場のポケモンを直すと、画面がその条件で予想し直す。予想が入り終わるまで待つ
   const waitPred = async () => page.waitForFunction(() => /予想を入れました|予想できません/.test(document.getElementById('t-predmsg')?.textContent ?? ''), null, { timeout: 30000 });
   for (let t = 0; t < 60 && !b.ended; t++) {
     const l0 = truth.legalActions(0), l1 = truth.legalActions(1);
@@ -125,7 +125,7 @@ for (let g = 0; g < GAMES; g++) {
     ops = 0;
     // ① 相手の行動 ② こちらの行動
     const oppMoveLine = lines.find(l => l.startsWith(`|move|p2a: ${foeBefore.name}|`) && own(l));
-    // 相手の交代先：本当の対戦の並び（oppPicks の順）の番号 → 6体の番号
+    // 相手の交代先：本当の対戦の並び（oppPicks の順）の番号 → 6匹の番号
     if (a1?.kind === 'switch') await clickRadio('t-opp', `switch ${oppPicks[a1.to]}`);
     else if (oppMoveLine) {
       const mv = oppMoveLine.split('|')[3];
@@ -146,7 +146,7 @@ for (let g = 0; g < GAMES; g++) {
       if (await page.$eval('input[name="t-first"]:checked', (x: any) => x.value).catch(() => '') !== want) { await clickRadio('t-first', want); await waitPred(); }
     }
     const toa = oppIdxOf(b.sides[1].active[0]);
-    // 場の体（交代技の交代先など）を先に直し、予想し直すのを待ってから、ほかの欄を直す
+    // 場のポケモン（交代技の交代先など）を先に直し、予想し直すのを待ってから、ほかの欄を直す
     if (await setSel('#t-oppactive', String(toa))) await waitPred();
     // こちらが交代技を打って入れ替わったら、②の下の交代先のボタンで入れる（ボタンが出ていることも確かめる）
     const ourNow = ourIdxOf(b.sides[0].active[0]);
@@ -159,7 +159,7 @@ for (let g = 0; g < GAMES; g++) {
     for (const el of await page.$$('input.t-oppother')) { const i = Number(await el.getAttribute('data-i')); const pct = pctOf(i); if (pct !== null) await setNum(`input.t-oppother[data-i="${i}"]`, pct); }
     const th = truthHps();
     const opsBeforeHp = ops;
-    // 予想が「別の体」を外したか：予想が無傷なのに本当は減った、または予想が減ったのに本当は変わらない欄
+    // 予想が「別のポケモン」を外したか：予想が無傷なのに本当は減った、または予想が減ったのに本当は変わらない欄
     const shown = await Promise.all([0, 1, 2].map(k => page.$eval(`.t-ourhp[data-i="${k}"]`, (x: any) => Number(x.value))));
     const beforeHps = v0hps;
     const wrongMon = [0, 1, 2].filter(k => (shown[k] === beforeHps[k]) !== (th[k] === beforeHps[k])).length;
@@ -207,7 +207,7 @@ await browser.close();
 try { process.kill(-server.pid!); } catch { /* もう止まっている */ }
 console.log(`試合 ${GAMES}、ターン ${turns}、死に出し ${replaces}、決着 ${ends}。1ターンの操作の平均 ${(opsTotal / Math.max(1, opsTurns)).toFixed(1)}回`);
 console.log(`交代先のボタンで入れたターン ${pivotButtons}`);
-console.log(`こちらの HP の予想（場の体を直して予想し直した後）：交代技のターン ${pivots}：直した欄 ${pivotFixes}、うち別の体を外した欄 ${pivotWrong}／ほかのターン ${plain}：直した欄 ${plainFixes}、うち別の体を外した欄 ${plainWrong}`);
+console.log(`こちらの HP の予想（場のポケモンを直して予想し直した後）：交代技のターン ${pivots}：直した欄 ${pivotFixes}、うち別のポケモンを外した欄 ${pivotWrong}／ほかのターン ${plain}：直した欄 ${plainFixes}、うち別のポケモンを外した欄 ${plainWrong}`);
 console.log(Object.keys(bad).length ? `ずれ：${JSON.stringify(bad)}` : 'ずれ：なし');
 for (const x of samples) console.log('  ' + x);
 console.log(`ページのエラー ${errors.length}件 ${JSON.stringify(errors.slice(0, 5))}`);

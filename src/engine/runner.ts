@@ -172,7 +172,7 @@ export function makeRunner(PS: any, FORMAT: string) {
         }
       }
       for (const p of b.getAllActive()) p.updateSpeed();
-      // 場の体が倒れていて控えが残っている側は、交代先を選ぶ要求にする（死に出しの場面。Showdown と同じく switchFlag で表す）
+      // 場のポケモンが倒れていて控えが残っている側は、交代先を選ぶ要求にする（死に出しの場面。Showdown と同じく switchFlag で表す）
       let needSwitch = false;
       for (const side of b.sides) {
         const a = side.active[0];
@@ -219,7 +219,7 @@ export function makeRunner(PS: any, FORMAT: string) {
     }
 
     /** 両者の行動を打ち、途中の交代は「番号の小さい控え」を選んで、次のターンの選択か決着まで進める。 */
-    /** prefer：途中の交代で、選べるならこの番号の体を出す（両者それぞれ）。 */
+    /** prefer：途中の交代で、選べるならこの番号のポケモンを出す（両者それぞれ）。 */
     play(a0: Action | null, a1: Action | null, maxSteps = 6, prefer: [number | null, number | null] = [null, null]) {
       const b = this.battle;
       if (a0) b.choose('p1', this.choiceString(0, a0));

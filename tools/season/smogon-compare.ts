@@ -45,7 +45,7 @@ for (const [id, mons] of bySp) {
     sSp.set(maxed(evs), (sSp.get(maxed(evs)) ?? 0) + w);
   }
   const smo = { items: norm(new Map(Object.entries(s.Items))), abilities: norm(new Map(Object.entries(s.Abilities))), natures: norm(sNat), spreads: norm(sSp) };
-  // 技：採用率（その技を持つ体の割合）
+  // 技：採用率（その技を持つポケモンの割合）
   const realMoves = new Map<string, number>();
   for (const x of mons) for (const mv of x.moves) realMoves.set(toID(mv), (realMoves.get(toID(mv)) ?? 0) + 1 / mons.length);
   const smMoves = new Map(Object.entries(s.Moves as Record<string, number>).filter(([k]) => k).map(([k, w]) => [k, w / count]));
@@ -99,7 +99,7 @@ for (const [id, mons] of bySp) {
   }
   perSp.push(`${id}：技の当たり Smogon ${(a.sm / mons.length * 4).toFixed(1)}個 ／ Showdown の型データ ${(a.sd / mons.length * 4).toFixed(1)}個`);
 }
-console.log(`\n補い方の比べ（実際の型 ${tot} 体）`);
+console.log(`\n補い方の比べ（実際の型 ${tot} 匹）`);
 for (const k of ['sm', 'sd'] as const) { const sc = (score as any)[k]; console.log(`${k === 'sm' ? 'Smogon の統計' : 'Showdown の型データ'}：持ち物が当たる ${(sc.item / tot * 100).toFixed(0)}%、性格が当たる ${(sc.nature / tot * 100).toFixed(0)}%、技4つのうち当たる数の平均 ${(sc.moves / tot * 4).toFixed(2)}`); }
 if (process.env.PER_SPECIES) console.log(perSp.join('\n'));
 
@@ -125,5 +125,5 @@ if (process.env.PER_SPECIES) console.log(perSp.join('\n'));
     item++;
   }
   console.log(`\n前のシーズンの型で補う方法（代わりに同じシーズンで測った値）：同じ種族・同じ持ち物の型が見つかった ${(found / n * 100).toFixed(0)}%。見つかったときの性格の当たり ${(nature / found * 100).toFixed(0)}%、技4つのうち ${(moves / found).toFixed(2)}個`);
-  console.log(`（比べ：同じ体を Smogon で補うと、性格 ${(smNature / n * 100).toFixed(0)}%、技 ${(smMoves / n).toFixed(2)}個）`);
+  console.log(`（比べ：同じポケモンを Smogon で補うと、性格 ${(smNature / n * 100).toFixed(0)}%、技 ${(smMoves / n).toFixed(2)}個）`);
 }

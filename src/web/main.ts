@@ -13,7 +13,7 @@ async function main() {
   app.innerHTML = `
     <p><a href="battle.html">対戦中の判断</a> ／ <a href="party.html">パーティの入力</a> ／ <a href="bench.html">速さの測定</a></p>
     <p>初期データ：シーズン${teams[0]?.season ?? '?'}の上位構築 <strong id="team-count">${teams.length}</strong> 件を読み込みました。</p>
-    <table><thead><tr><th>順位</th><th>6体</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>順位</th><th>6匹</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="muted">上位5件だけを表示しています。</p>`;
 }
 

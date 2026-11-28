@@ -1,7 +1,7 @@
 // 対戦の記録係：入力されたターンから今の盤面を作り、相手の型の推定に手がかりを渡し、探索用の仮の盤面を作る。
 // - ターンは、記録の出る Showdown（速さの層なし）で、相手の型を「今いちばんありそうな型」にして何通りか打ち直し、
-//   見えた結果（どちらが先、HP、急所、場の体、状態異常）にいちばん合う展開を選ぶ。能力ランク・天気・まきびし等はその展開から取る。
-//   見えた数字（HP、状態異常、場の体）は入力の値で上書きする。
+//   見えた結果（どちらが先、HP、急所、場のポケモン、状態異常）にいちばん合う展開を選ぶ。能力ランク・天気・まきびし等はその展開から取る。
+//   見えた数字（HP、状態異常、場のポケモン）は入力の値で上書きする。
 // - 相手のHPは割合（%）で持ち、仮の盤面を作るときに、その型の最大HPで実数に直す。
 import { makeRunner } from '../engine/runner.ts';
 import type { Position, PosMon, PosSide, MonSet, StatusID, Action } from '../engine/position.ts';
@@ -14,14 +14,14 @@ import { mergePriors, type Learned } from '../learn/merge.ts';
 const toID = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 export interface BattleSetup {
-  ours: MonSet[];          // こちらの選出3体（並びはこの順。番号はこの並び）
+  ours: MonSet[];          // こちらの選出3匹（並びはこの順。番号はこの並び）
   ourLead: number;
-  oppSpecies: string[];    // 相手の6体（英語名。番号はこの並び）
-  ourTeamJa: string[];     // こちらの6体の日本語名（選出の出し分けの照合用）
+  oppSpecies: string[];    // 相手の6匹（英語名。番号はこの並び）
+  ourTeamJa: string[];     // こちらの6匹の日本語名（選出の出し分けの照合用）
 }
 /** 2つの行動が同じか（技の番号とメガシンカの有無、または交代先）。mega の印がないことと false は同じに扱う。 */
 export const sameAction = (x: Action, y: Action) => x.kind === y.kind && (x.kind === 'switch' ? x.to === (y as any).to : x.slot === (y as any).slot && !!x.mega === !!(y as any).mega);
-/** 結果の予想（predict の戻り値）。HP は乱数ごとの中央値、場の体・状態異常はいちばん多いもの。 */
+/** 結果の予想（predict の戻り値）。HP は乱数ごとの中央値、場のポケモン・状態異常はいちばん多いもの。 */
 export interface Prediction {
   first: 'us' | 'them' | undefined; firstSure: number;
   ourHps: number[]; ourActive: number; ourStatus: string;
@@ -40,21 +40,21 @@ export interface TurnInput {
   oppAbility?: string;             // 相手の特性の発動（英語名）
   ourMega?: boolean;               // こちらがこのターンにメガシンカした（技を出せなくてもメガシンカは起きる）
   oppMega?: boolean;               // 相手がこのターンにメガシンカした
-  // ourActive の HP が0なら、その体は倒れて交代先がまだ（死に出しの場面）。oppActive も同じ（相手の HP% が0で、両方倒れたとき）
-  // oppHps：ターンの後の場の体以外の相手の体の HP%（6体の番号 → %）。場から下がった体（とんぼがえり・ドラゴンテール・倒れた等）の値
+  // ourActive の HP が0なら、そのポケモンは倒れて交代先がまだ（死に出しの場面）。oppActive も同じ（相手の HP% が0で、両方倒れたとき）
+  // oppHps：ターンの後の場のポケモン以外の相手のポケモンの HP%（6匹の番号 → %）。場から下がったポケモン（とんぼがえり・ドラゴンテール・倒れた等）の値
   after: { ourActive: number; ourHp: number; ourStatus: StatusID; oppActive: number; oppHpPct: number; oppStatus: StatusID; ourHps?: number[]; oppHps?: Record<number, number> };
   visible?: VisibleState;
 }
 /** 画面に見える状態（「今の状態」欄で確かめ・直したもの）。入っていれば、再現の値を上書きする。 */
 export interface VisibleState {
-  boosts?: [Partial<Record<string, number>>, Partial<Record<string, number>>];   // こちらの場の体、相手の場の体
+  boosts?: [Partial<Record<string, number>>, Partial<Record<string, number>>];   // こちらの場のポケモン、相手の場のポケモン
   weather?: string; terrain?: string; trickroom?: boolean;                        // '' はなし
   cond?: [Record<string, number>, Record<string, number>];                        // まきびし等（層の数か、ある=1）
-  vol?: [{ leechseed?: boolean; substitute?: boolean }, { leechseed?: boolean; substitute?: boolean }];  // 場の体のやどりぎのタネ・みがわり
-  ourItem?: string;   // こちらの場の体が今持っている持ち物（id、'' はなし）。トリック等で変わったとき用
+  vol?: [{ leechseed?: boolean; substitute?: boolean }, { leechseed?: boolean; substitute?: boolean }];  // 場のポケモンのやどりぎのタネ・みがわり
+  ourItem?: string;   // こちらの場のポケモンが今持っている持ち物（id、'' はなし）。トリック等で変わったとき用
 }
 export interface StartInput { oppLead: number; oppAbility?: string; oppItem?: string }
-/** 死に出し：倒れた体に代わって出した体と、出てきた後の HP（ステルスロック等の後）。ourTo はこちらの3体の番号、oppTo は相手の6体の番号。 */
+/** 死に出し：倒れたポケモンに代わって出したポケモンと、出てきた後の HP（ステルスロック等の後）。ourTo はこちらの3匹の番号、oppTo は相手の6匹の番号。 */
 export interface ReplaceInput { ourTo?: number; oppTo?: number; ourHps?: number[]; oppHpPct?: number; oppAbility?: string; oppItem?: string }
 
 interface OppMonState { seen: boolean; hpPct: number; status: StatusID; fainted: boolean }
@@ -77,14 +77,14 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
   return class Analyzer {
     setup: BattleSetup;
     opp: OppMonState[];
-    sets: OpponentSet[];               // 相手の6体それぞれの型の推定
+    sets: OpponentSet[];               // 相手の6匹それぞれの型の推定
     benchDist: Map<string, number>;
     pos!: Position;                    // 今の盤面（相手の型は「いちばんありそうな型」で置いたもの）
-    oppOrder: number[] = [];           // pos.sides[1].mons の各体が、相手の6体の何番か
+    oppOrder: number[] = [];           // pos.sides[1].mons の各ポケモンが、相手の6匹の何番か
     turn = 0;
     notes: string[] = [];              // 直近のターンの再現についての注意
-    itemChanged: boolean[] = [false, false, false, false, false, false]; // トリック等で持ち物が入れ替わったかもしれない体
-    itemGone: boolean[] = [false, false, false, false, false, false];    // 持ち物がなくなったのが画面で見えた体（使い切りの持ち物の発動、はたきおとす）
+    itemChanged: boolean[] = [false, false, false, false, false, false]; // トリック等で持ち物が入れ替わったかもしれないポケモン
+    itemGone: boolean[] = [false, false, false, false, false, false];    // 持ち物がなくなったのが画面で見えたポケモン（使い切りの持ち物の発動、はたきおとす）
     constructor(setup: BattleSetup) {
       this.setup = setup;
       this.opp = setup.oppSpecies.map(() => ({ seen: false, hpPct: 100, status: '', fainted: false }));
@@ -92,7 +92,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       this.benchDist = bench.prior(setup.oppSpecies, setup.ourTeamJa);
     }
 
-    /** 相手の体 i の、今いちばんありそうな型（見えた技を必ず含める）。 */
+    /** 相手のポケモン i の、今いちばんありそうな型（見えた技を必ず含める）。 */
     mapSet(i: number, mustMove?: string, extra?: (c: SetCand) => number): MonSet {
       const s = this.sets[i];
       let post = s.posterior() ?? s.cands.map(c => c.prior);
@@ -106,7 +106,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       return { species: this.setup.oppSpecies[i], item: toID(c.item), ability: toID(c.ability), nature: c.nature, evs: c.evs, moves: moves.slice(0, 4).map(toID) };
     }
 
-    /** 相手の選出の3体（見えた体＋ありそうな体）。 */
+    /** 相手の選出の3匹（見えたポケモン＋ありそうなポケモン）。 */
     oppTrio(): number[] {
       const seen = this.opp.map((o, i) => o.seen ? i : -1).filter(i => i >= 0);
       const inc = BenchModel.inclusion(this.benchDist, seen);
@@ -115,7 +115,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
     }
 
     /** 対戦の始まり：先発を出した直後の盤面を作る（特性の効果も入る）。 */
-    /** 相手の体 i の種族（とそのメガシンカ）が持てる特性。 */
+    /** 相手のポケモン i の種族（とそのメガシンカ）が持てる特性。 */
     possibleAbilities(i: number): Set<string> {
       const owner = dex.species.get(this.setup.oppSpecies[i]);
       const out = new Set<string>([...Object.values(owner.abilities).map((a: any) => toID(a))]);
@@ -141,7 +141,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       this.pos = r.toPosition();
     }
 
-    /** pos の相手側を、今の推定（いちばんありそうな型）と見えている HP% で作り直す。order は相手の6体の番号。 */
+    /** pos の相手側を、今の推定（いちばんありそうな型）と見えている HP% で作り直す。order は相手の6匹の番号。 */
     private oppSide(order: number[], from: Position, sets: (i: number) => MonSet): PosSide {
       const old = from.sides[1];
       const byIdx = new Map(this.oppOrder.map((oi, k) => [oi, old.mons[k]]));
@@ -166,7 +166,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       const start = this.pos;
       const oppActiveIdx = this.oppOrder[start.sides[1].active];
       const beforePct = this.opp[oppActiveIdx].hpPct;
-      // 交代先が新しく見えた体なら、相手の3体に入れる
+      // 交代先が新しく見えたポケモンなら、相手の3匹に入れる
       const newOpp = [t.opp.kind === 'switch' ? t.opp.to : -1, t.after.oppActive].filter(i => i >= 0);
       for (const i of newOpp) this.opp[i].seen = true;
       const trio = this.oppTrio();
@@ -181,14 +181,14 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       const typeShifter = Object.values(oppSp.abilities).some((a: any) => ['protean', 'libero'].includes(toID(a)));
       if (oppMove && !transformer && toID(oppMove) !== 'struggle') os.revealMove(oppMove);
       // トリック・すりかえ等で持ち物が入れ替わると、見える持ち物ももとの持ち物ではなくなり、素早さ・ダメージも変わるので、
-      // その体については、以後、持ち物・順番・ダメージの手がかりを使わない
+      // そのポケモンについては、以後、持ち物・順番・ダメージの手がかりを使わない
       const SWAP = ['trick', 'switcheroo', 'thief', 'covet', 'bestow'];
       const ourMoveId = t.ours.kind === 'move' ? start.sides[0].mons[start.sides[0].active].set.moves[t.ours.slot] : '';
       const swapNow = (oppMove && SWAP.includes(toID(oppMove))) || SWAP.includes(toID(ourMoveId ?? ''));
       const itemFrozen = this.itemChanged[oppActiveIdx] || swapNow;
       if (swapNow) this.itemChanged[oppActiveIdx] = true;
       if (t.oppItem && !this.itemChanged[t.after.oppActive] && !(t.after.oppActive === oppActiveIdx && itemFrozen)) this.sets[t.after.oppActive].add(clueItem(t.oppItem));
-      // 使い切りの持ち物の発動が見えたら、その体の持ち物はなくなった
+      // 使い切りの持ち物の発動が見えたら、そのポケモンの持ち物はなくなった
       if (t.oppItem) {
         const it = dex.items.get(t.oppItem);
         if (it.isBerry || ['focussash', 'airballoon', 'whiteherb', 'mentalherb', 'powerherb', 'redcard', 'ejectbutton', 'ejectpack', 'weaknesspolicy', 'boosterenergy', 'roomservice', 'throatspray', 'adrenalineorb', 'blunderpolicy', 'mirrorherb', 'cellbattery', 'absorbbulb', 'snowball', 'luminousmoss'].includes(it.id)) this.itemGone[t.after.oppActive] = true;
@@ -252,7 +252,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
         if (score === 0) break;
       }
       if (!best) { this.notes.push('このターンを Showdown で再現できませんでした。盤面は入力の値だけで作ります。'); best = { score: 99, pos: replayPos, log: [] }; }
-      // HP の少しの違いは、相手の型を推定で置いているので起きる。場の体・状態異常・順番・急所が合わないときだけ知らせる
+      // HP の少しの違いは、相手の型を推定で置いているので起きる。場のポケモン・状態異常・順番・急所が合わないときだけ知らせる
       if (best.score >= 1) this.notes.push(`入力と合う再現が見つかりませんでした（ずれの点数 ${best.score.toFixed(2)}）。能力ランクや場の状態を確かめてください。`);
       // 見えた値で上書き
       const pos = best.pos;
@@ -262,22 +262,22 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       const ua = us.mons[us.active]; ua.hp = t.after.ourHp; ua.status = t.after.ourStatus;
       const oa = this.opp[t.after.oppActive];
       oa.hpPct = t.after.oppHpPct; oa.status = t.after.oppStatus; oa.fainted = t.after.oppHpPct <= 0;
-      // 相手が倒れた体
+      // 相手が倒れたポケモン
       // 再現で倒れたことにするのは、そのターンに場にいたポケモン（ターンの始めの場・交代先）だけ。控えにいたポケモンは、このターンに倒れない
       const onFieldThisTurn = new Set([oppActiveIdx, ...(t.opp.kind === 'switch' ? [t.opp.to] : [])]);
       for (const [k, i] of order.entries()) if (pos.sides[1].mons[k].hp <= 0 && i !== t.after.oppActive && onFieldThisTurn.has(i)) { this.opp[i].fainted = true; this.opp[i].hpPct = 0; }
-      // 死に出しの場面では、再現が交代先を勝手に選んで出している（ステルスロック等を受けている）ので、ほかの体の HP は再現から取らない
+      // 死に出しの場面では、再現が交代先を勝手に選んで出している（ステルスロック等を受けている）ので、ほかのポケモンの HP は再現から取らない
       const pendingSwitch = t.after.ourHp <= 0 || t.after.oppHpPct <= 0;
-      // 控えにいた体の HP は変わらないので、取り直すのはターンの始めに場にいた体だけ（%→実数→% の行き来で1ずつ減っていくのを防ぐ）
-      // 入力にない体は、入力から見てそのターンに場にいた体（ターンの始めの場の体・交代先）で、再現で HP が動いたときだけ再現の値を使う
-      // （再現が本当と違う展開を選ぶと、場に出ていない体の HP が動くことがあるため）
+      // 控えにいたポケモンの HP は変わらないので、取り直すのはターンの始めに場にいたポケモンだけ（%→実数→% の行き来で1ずつ減っていくのを防ぐ）
+      // 入力にないポケモンは、入力から見てそのターンに場にいたポケモン（ターンの始めの場のポケモン・交代先）で、再現で HP が動いたときだけ再現の値を使う
+      // （再現が本当と違う展開を選ぶと、場に出ていないポケモンの HP が動くことがあるため）
       const onFieldIdx = new Set<number>([oppActiveIdx, ...(t.opp.kind === 'switch' ? [t.opp.to] : [])]);
       if (!pendingSwitch) for (const [k, i] of order.entries()) {
         if (i === t.after.oppActive || this.opp[i].fainted || !this.opp[i].seen || !onFieldIdx.has(i) || t.after.oppHps?.[i] !== undefined) continue;
         const before = replayPos.sides[1].mons[k], after = pos.sides[1].mons[k];
         if (before && after && before.hp !== after.hp) this.opp[i].hpPct = shownPercent(after.hp, maxhpOf(after.set));
       }
-      // 画面で見えた相手の体ごとの HP%（場から下がった体の値）
+      // 画面で見えた相手のポケモンごとの HP%（場から下がったポケモンの値）
       for (const [is, pct] of Object.entries(t.after.oppHps ?? {})) { const i = Number(is); if (i === t.after.oppActive) continue; this.opp[i].seen = true; this.opp[i].hpPct = pct; this.opp[i].fainted = pct <= 0; const k = order.indexOf(i); if (k >= 0) { const m = pos.sides[1].mons[k]; m.hp = pct <= 0 ? 0 : Math.max(1, Math.round(maxhpOf(m.set) * pct / 100)); if (pct <= 0) m.status = ''; } }
       pos.sides[1].active = Math.max(0, order.indexOf(t.after.oppActive));
       pos.sides[1].mons[pos.sides[1].active].status = t.after.oppStatus;
@@ -313,14 +313,14 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
 
     /**
      * このターンの結果の予想（入力の欄に先に入れるため）。記録係の今の盤面から、相手の型を「いちばんありそうな型」にして、
-     * 両者の行動で seeds 通りの乱数で打ち、HP は真ん中の値、場の体・状態異常・先に動いた側はいちばん多いものを返す。
+     * 両者の行動で seeds 通りの乱数で打ち、HP は真ん中の値、場のポケモン・状態異常・先に動いた側はいちばん多いものを返す。
      * 反動・さめはだ・ゴツゴツメット・ステルスロック・いのちのたま・たべのこし等は Showdown が計算する。推定の状態は変えない。
      */
     /**
      * 結果の予想。how：画面で決めた（または直した）条件。
-     *  - ourTo / oppTo：ターンの後の場の体（こちらは盤面の並び、相手は6体の番号）。交代技（ボルトチェンジ・とんぼがえり等）や
-     *    ドラゴンテール等でターンの途中に入れ替わるとき、その体を出す（決めなければ番号の若い体）
-     *  - first：先に動いた側。決めたときは、その順になった乱数だけを使う（交代技を先に打てば、相手の攻撃は出てきた体が受ける）
+     *  - ourTo / oppTo：ターンの後の場のポケモン（こちらは盤面の並び、相手は6匹の番号）。交代技（ボルトチェンジ・とんぼがえり等）や
+     *    ドラゴンテール等でターンの途中に入れ替わるとき、そのポケモンを出す（決めなければ番号の若いポケモン）
+     *  - first：先に動いた側。決めたときは、その順になった乱数だけを使う（交代技を先に打てば、相手の攻撃は出てきたポケモンが受ける）
      */
     predict(t: { ours: TurnInput['ours']; opp: TurnInput['opp'] }, seeds = 24, how: { ourTo?: number; oppTo?: number; first?: 'us' | 'them'; anyMove?: boolean } = {}): Prediction | null {
       const start = this.pos;
@@ -329,7 +329,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       const sw = t.opp.kind === 'switch' ? t.opp.to : -1;
       const to = how.oppTo !== undefined && how.oppTo !== oppActiveIdx && how.oppTo !== sw && !this.opp[how.oppTo]?.fainted ? how.oppTo : -1;
       const order = [oppActiveIdx, ...(sw >= 0 ? [sw] : []), ...(to >= 0 ? [to] : []), ...this.oppTrio().filter(i => i !== oppActiveIdx && i !== sw && i !== to)].slice(0, 3);
-      // まだ見えていない体へ交代するときも、その体の盤面を作れるように一時的に見えたことにする（終わったら戻す）
+      // まだ見えていないポケモンへ交代するときも、そのポケモンの盤面を作れるように一時的に見えたことにする（終わったら戻す）
       const tmpSeen = [sw, to].filter(i => i >= 0 && !this.opp[i].seen);
       for (const i of tmpSeen) this.opp[i].seen = true;
       try {
@@ -349,7 +349,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
         const pos: Position = { ...start, sides: [start.sides[0], this.oppSide(order, start, i => this.mapSet(i, i === oppActiveIdx ? oppMove : undefined, i === oppActiveIdx ? orderLike : undefined))] };
         const firsts: string[] = [], ourActs: number[] = [], oppActs: number[] = [], ourSt: string[] = [], oppSt: string[] = [];
         const ourHps: number[][] = start.sides[0].mons.map(() => []), oppPcts: number[] = [];
-        const oppPctsBy = new Map<number, number[]>();   // 相手の6体の番号 → 各乱数での HP%
+        const oppPctsBy = new Map<number, number[]>();   // 相手の6匹の番号 → 各乱数での HP%
         for (let seed = 1; seed <= seeds; seed++) {
           let r;
           try { r = new Runner(pos, seed); } catch { break; }
@@ -421,11 +421,11 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       }
     }
 
-    /** 死に出しの場面か：倒れた場の体があり、控えが残っている側（0 こちら、1 相手）。 */
+    /** 死に出しの場面か：倒れた場のポケモンがあり、控えが残っている側（0 こちら、1 相手）。 */
     pendingSides(): (0 | 1)[] {
       const out: (0 | 1)[] = [];
       const us = this.pos.sides[0];
-      // 決着していれば（こちらが全員倒れた、または相手が3体倒れた）死に出しはない
+      // 決着していれば（こちらが全員倒れた、または相手が3匹倒れた）死に出しはない
       if (!us.mons.some(m => m.hp > 0) || this.opp.filter(o => o.fainted).length >= 3) return out;
       if (us.mons[us.active].hp <= 0 && us.mons.some(m => m.hp > 0)) out.push(0);
       const oi = this.oppOrder[this.pos.sides[1].active];
@@ -505,7 +505,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
     private mismatch(t: TurnInput, p: Position, log: string[], order: number[]): number {
       let s = 0;
       const us = p.sides[0], them = p.sides[1];
-      // 倒れて交代先がまだの側は、再現が交代先を出しているので場の体を比べない（倒れたことは HP で比べる）
+      // 倒れて交代先がまだの側は、再現が交代先を出しているので場のポケモンを比べない（倒れたことは HP で比べる）
       if (t.after.ourHp > 0 && us.active !== t.after.ourActive) s += 3;
       if (t.after.oppHpPct > 0 && order[them.active] !== t.after.oppActive) s += 3;
       const ua = us.mons[t.after.ourActive];
@@ -547,7 +547,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       const seen = this.opp.map((o, i) => o.seen ? i : -1).filter(i => i >= 0);
       const activeIdx = this.oppOrder[this.pos.sides[1].active];
       for (let n = 0; n < k; n++) {
-        // 控え：見えた体を含む3体の組を、選出の推定から抜き出す
+        // 控え：見えたポケモンを含む3匹の組を、選出の推定から抜き出す
         let trio: number[] = [];
         const cands = [...this.benchDist.entries()].filter(([key]) => seen.every(i => key.split(',').map(Number).includes(i)));
         const total = cands.reduce((a, [, v]) => a + v, 0);
@@ -556,7 +556,7 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
         if (trio.length !== 3) trio = this.oppTrio();
         const order = [activeIdx, ...trio.filter(i => i !== activeIdx)].slice(0, 3);
         const side = this.oppSide(order, this.pos, i => {
-          // メガシンカ済みの体は、メガストーンを持つ型だけにする（持たない型が抜き出されたら、いちばんありそうな型にする）
+          // メガシンカ済みのポケモンは、メガストーンを持つ型だけにする（持たない型が抜き出されたら、いちばんありそうな型にする）
           const m = this.pos.sides[1].mons[this.oppOrder.indexOf(i)];
           let s = this.sets[i].sample(rand);
           if (s && m?.mega && !dex.items.get(s.item).megaStone) s = null;
@@ -567,14 +567,14 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
       return out;
     }
 
-    /** 相手の体 i の推定のまとめ（上位の持ち物・特性・技）。 */
+    /** 相手のポケモン i の推定のまとめ（上位の持ち物・特性・技）。 */
     summary(i: number) {
       const s = this.sets[i];
       const top = (m: Map<string, number>, n: number) => [...m.entries()].slice(0, n).map(([k, v]) => ({ name: k, p: v }));
       return { items: top(s.marginal(c => c.item), 4), abilities: top(s.marginal(c => c.ability), 3), moves: top(s.moveProbabilities(), 8), revealed: [...s.moves], ok: !!s.posterior() };
     }
 
-    /** こちらの選び方の文字列（探索の結果）を、表示用の行動にする。仮の盤面の並び：場の体、残り（番号順）。 */
+    /** こちらの選び方の文字列（探索の結果）を、表示用の行動にする。仮の盤面の並び：場のポケモン、残り（番号順）。 */
     describe(choice: string): { kind: 'move'; slot: number; mega: boolean } | { kind: 'switch'; to: number } {
       const us = this.pos.sides[0];
       const [kind, num, mega] = choice.split(' ');

@@ -66,14 +66,14 @@ function renderSetup() {
     ${parties.length ? '' : '<p class="warn">保存したパーティがありません。先に<a href="party.html">パーティの入力</a>で保存してください。</p>'}
     <p><label>こちらのパーティ <select id="s-party">${parties.map((p, i) => `<option value="${i}">${esc(p.name)}</option>`).join('')}</select></label></p>
     <div id="s-ours"></div>
-    <h3>相手の6体</h3>
-    <div class="row">${[0, 1, 2, 3, 4, 5].map(i => `<input class="s-opp" data-i="${i}" list="dl-species" placeholder="${i + 1}体目" size="12">`).join(' ')}</div>
+    <h3>相手の6匹</h3>
+    <div class="row">${[0, 1, 2, 3, 4, 5].map(i => `<input class="s-opp" data-i="${i}" list="dl-species" placeholder="${i + 1}匹目" size="12">`).join(' ')}</div>
     <datalist id="dl-species">${Object.entries(ja.species).map(([, v]) => `<option value="${esc(v as string)}">`).join('')}</datalist>
     <h3>選出のおすすめ</h3>
-    <div id="s-select" class="muted">（こちらのパーティと相手の6体を入れると、読み合いで釣り合う選出を計算します）</div>
+    <div id="s-select" class="muted">（こちらのパーティと相手の6匹を入れると、読み合いで釣り合う選出を計算します）</div>
     <p class="muted"><label>その場で計算する時間 <input id="s-time" type="number" min="0" max="85" value="${Math.round(selectBudget() / 1000)}" style="width:4em">秒</label>（保存した表がない相手のとき、その場の試合で補う時間。0ならすぐに出す）</p>
     <h3>相手の先発</h3>
-    <div id="s-opplead" class="row muted">（相手の6体を入れると選べます）</div>
+    <div id="s-opplead" class="row muted">（相手の6匹を入れると選べます）</div>
     <p><label>先発の特性の発動（出たとき） <select id="s-oppab"><option value="">なし</option></select></label>
        <label>先発の持ち物の発動（ふうせん等） <input id="s-oppitem" list="dl-items" size="12"></label></p>
     <datalist id="dl-items">${Object.values(ja.items).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist>
@@ -81,22 +81,22 @@ function renderSetup() {
   </section>`;
   const renderOurs = () => {
     const p = parties[Number((document.getElementById('s-party') as HTMLSelectElement).value)];
-    document.getElementById('s-ours')!.innerHTML = p ? `<h3>こちらの選出（3体を選び、先発を1体選ぶ）</h3><table><tr><th>選ぶ</th><th>先発</th><th>ポケモン</th></tr>${p.mons.map((m: any, i: number) =>
+    document.getElementById('s-ours')!.innerHTML = p ? `<h3>こちらの選出（3匹を選び、先発を1匹選ぶ）</h3><table><tr><th>選ぶ</th><th>先発</th><th>ポケモン</th></tr>${p.mons.map((m: any, i: number) =>
       `<tr><td><input type="checkbox" class="s-pick" data-i="${i}"></td><td><input type="radio" name="s-lead" value="${i}"></td><td>${esc(jn('species', m.species))}</td></tr>`).join('')}</table>` : '';
   };
   const oppIds = () => [...document.querySelectorAll<HTMLInputElement>('.s-opp')].map(x => resolve('species', x.value));
-  const trySelect = () => { const p = parties[Number((document.getElementById('s-party') as HTMLSelectElement).value)]; const ids = oppIds(); if (p && ids.every(Boolean)) computeSelection(p, ids).catch(e => { const el = document.getElementById('s-select'); if (el) el.innerHTML = `<p class="warn">選出を計算できませんでした：${esc(String(e?.message ?? e))}。3体と先発は自分で選んでください。</p>`; }); };
+  const trySelect = () => { const p = parties[Number((document.getElementById('s-party') as HTMLSelectElement).value)]; const ids = oppIds(); if (p && ids.every(Boolean)) computeSelection(p, ids).catch(e => { const el = document.getElementById('s-select'); if (el) el.innerHTML = `<p class="warn">選出を計算できませんでした：${esc(String(e?.message ?? e))}。3匹と先発は自分で選んでください。</p>`; }); };
   (document.getElementById('s-party') as HTMLSelectElement).onchange = () => { renderOurs(); lastIds = ''; renderLead(); };
   renderOurs();
   (document.getElementById('s-time') as HTMLInputElement).onchange = e => store(KEY_SELECT_TIME, Math.max(0, Math.min(85, Number((e.target as HTMLInputElement).value))) * 1000);
-  // 6体の名前が変わったときだけ作り直す（入力欄の確定の後で押した先発のボタンが消えないように）
+  // 6匹の名前が変わったときだけ作り直す（入力欄の確定の後で押した先発のボタンが消えないように）
   let lastIds = '';
   const renderLead = () => {
     const ids = oppIds();
     if (ids.join(',') === lastIds) return;
     lastIds = ids.join(',');
     trySelect();
-    document.getElementById('s-opplead')!.innerHTML = ids.every(Boolean) ? ids.map((id, i) => `<label><input type="radio" name="s-opplead" value="${i}"> ${esc(jn('species', id))}</label>`).join(' ') : '（相手の6体を入れると選べます）';
+    document.getElementById('s-opplead')!.innerHTML = ids.every(Boolean) ? ids.map((id, i) => `<label><input type="radio" name="s-opplead" value="${i}"> ${esc(jn('species', id))}</label>`).join(' ') : '（相手の6匹を入れると選べます）';
     document.querySelectorAll<HTMLInputElement>('input[name="s-opplead"]').forEach(r => r.onchange = () => {
       const sp = dex.species[ids[Number(r.value)]];
       document.getElementById('s-oppab')!.innerHTML = '<option value="">なし</option>' + [...new Set(Object.values(sp?.abilities ?? {}))].map((a: any) => `<option value="${toID(a)}">${esc(jn('abilities', a))}</option>`).join('');
@@ -111,9 +111,9 @@ function renderSetup() {
     const ids = oppIds();
     const oppLead = Number((document.querySelector('input[name="s-opplead"]:checked') as HTMLInputElement | null)?.value ?? -1);
     if (!p) { msgEl.textContent = 'パーティを選んでください。'; return; }
-    if (picks.length !== 3) { msgEl.textContent = 'こちらの3体を選んでください。'; return; }
-    if (!picks.includes(lead)) { msgEl.textContent = '先発は、選んだ3体の中から選んでください。'; return; }
-    if (!ids.every(Boolean)) { msgEl.textContent = `相手の${ids.findIndex(x => !x) + 1}体目の名前が分かりません。候補から選んでください。`; return; }
+    if (picks.length !== 3) { msgEl.textContent = 'こちらの3匹を選んでください。'; return; }
+    if (!picks.includes(lead)) { msgEl.textContent = '先発は、選んだ3匹の中から選んでください。'; return; }
+    if (!ids.every(Boolean)) { msgEl.textContent = `相手の${ids.findIndex(x => !x) + 1}匹目の名前が分かりません。候補から選んでください。`; return; }
     if (oppLead < 0) { msgEl.textContent = '相手の先発を選んでください。'; return; }
     const ours: MonSet[] = picks.map(i => { const m = p.mons[i]; return { species: toID(m.species), item: toID(m.item), ability: toID(m.ability), nature: m.nature, evs: m.evs, moves: m.moves.filter(Boolean).map(toID) }; });
     const oppItem = resolve('items', (document.getElementById('s-oppitem') as HTMLInputElement).value);
@@ -146,7 +146,7 @@ function getSelectWorkers() {
   return { workers: selectWorkers, ready: selectReady! };
 }
 
-/** 相手の6体が決まったら：保存した表を読む。なければ近い構築からの見積もりと、その場の試合で補う。結果を出し、確率どおりにくじを引いて準備欄に入れる。 */
+/** 相手の6匹が決まったら：保存した表を読む。なければ近い構築からの見積もりと、その場の試合で補う。結果を出し、確率どおりにくじを引いて準備欄に入れる。 */
 async function computeSelection(p: any, ids: string[]) {
   const tStart = performance.now();
   const gen = ++selectGen;
@@ -158,7 +158,7 @@ async function computeSelection(p: any, ids: string[]) {
   const ours = p.mons.map(plainSet);
   const index = await fetchJson(`${base}data/precomputed/index.json`);
   const sorted = [...ids].sort().join(',');
-  // 同じ6体の表が複数のシーズンにあれば、新しいシーズンのものを使う
+  // 同じ6匹の表が複数のシーズンにあれば、新しいシーズンのものを使う
   const seasonNo = (x: string) => Number(String(x ?? '').replace(/\D/g, '')) || 0;
   const entry = (index?.tables ?? []).filter((t: any) => t.party === p.id && t.partyKey === key && t.species.map(toID).sort().join(',') === sorted && t.games > 0)
     .sort((a: any, b: any) => seasonNo(b.season) - seasonNo(a.season))[0];
@@ -198,7 +198,7 @@ async function computeSelection(p: any, ids: string[]) {
         return await new Promise<number>((res, rej) => { w.onmessage = ev => ev.data.type === 'game' ? res(ev.data.v) : rej(new Error(ev.data.message)); w.postMessage({ ours, theirs, r, c, iters: 100, seed }); });
       } finally { release(w); }
     };
-    // 6体を入れ終えた時点（computeSelection の始め）から数えて、決めた時間（既定45秒）の中に収める。
+    // 6匹を入れ終えた時点（computeSelection の始め）から数えて、決めた時間（既定45秒）の中に収める。
     // 打ちかけの試合が締め切りの後に終わる分（i5-5300 で1試合数秒の見込み）として3秒残す
     const timeMs = Math.max(3000, selectBudget() - (performance.now() - tStart) - 3000);
     el.innerHTML = `<p>選出を計算しています…（その場の試合：<span id="s-prog">0</span>、最大${Math.round(timeMs / 1000)}秒）</p>`;
@@ -219,7 +219,7 @@ async function computeSelection(p: any, ids: string[]) {
   document.querySelectorAll<HTMLInputElement>('.s-pick').forEach(x => { x.checked = pk.trio.includes(Number(x.dataset.i)); });
   document.querySelectorAll<HTMLInputElement>('input[name="s-lead"]').forEach(x => { x.checked = Number(x.value) === pk.lead; });
   el.innerHTML = `<p><strong>くじの結果：${name(pick)}</strong>（準備欄に入れました。選び直してもかまいません）</p>
-    <table><tr><th>選出（3体）</th><th>確率</th></tr>${rows.map((r: any) => `<tr${r.i === pick ? ' class="hl"' : ''}><td>${name(r.i)}</td><td>${Math.round(r.x * 100)}%</td></tr>`).join('')}</table>
+    <table><tr><th>選出（3匹）</th><th>確率</th></tr>${rows.map((r: any) => `<tr${r.i === pick ? ' class="hl"' : ''}><td>${name(r.i)}</td><td>${Math.round(r.x * 100)}%</td></tr>`).join('')}</table>
     <p class="muted">釣り合いの勝率 ${Math.round(sol.value * 100)}%（相手がこちらの確率を読んで一番よい選出をしても、この勝率が見込める）。もとにしたもの：${basis.map(esc).join('、')}。</p>`;
 }
 
@@ -240,7 +240,7 @@ function renderBattle() {
   const ua = us.mons[us.active], oaIdx = oppActiveIdx(), oa = view.opp[oaIdx], oaMon = them.mons[them.active];
   const sum = view.summaries[oaIdx];
   const megaUsedUs = !!us.megaUsed, canMegaUs = !megaUsedUs && !!dex.items[ua.set.item]?.megaStone;
-  // 相手がメガシンカしうるのは、まだメガシンカしていなくて、場の体の種族にメガストーンがあるとき
+  // 相手がメガシンカしうるのは、まだメガシンカしていなくて、場のポケモンの種族にメガストーンがあるとき
   const oppSpId = toID(doc!.setup.oppSpecies[oaIdx]);
   const canMegaOpp = !them.megaUsed && !oaMon.mega && Object.values(dex.items).some((it: any) => it.megaStone && Object.keys(it.megaStone).some((k: string) => toID(k) === oppSpId || toID(k) === toID(dex.species[oppSpId]?.baseSpecies ?? '')));
   const oppAlive = view.opp.map((o: any, i: number) => ({ o, i })).filter((x: any) => !x.o.fainted);
@@ -256,7 +256,7 @@ function renderBattle() {
     <p><strong>こちら</strong>：${esc(jn('species', ua.set.species))} HP ${ua.hp}/${maxhp(ua.set)} ${STATUS_JA[ua.status] !== 'なし' ? STATUS_JA[ua.status] : ''} ${esc(boostsText(ua.boosts))}
       ／ 控え：${us.mons.map((m: MonSet & any, i: number) => i === us.active ? '' : `${esc(jn('species', m.set.species))} ${m.hp}/${maxhp(m.set)}`).filter(Boolean).join('、')}</p>
     <p><strong>相手</strong>：${esc(jn('species', view.pos.sides[1].mons[them.active].set.species))} HP ${oa.hpPct}% ${STATUS_JA[oa.status] !== 'なし' ? STATUS_JA[oa.status] : ''} ${esc(boostsText(oaMon.boosts))}
-      ／ 見えた体：${view.opp.map((o: any, i: number) => o.seen ? `${esc(jn('species', doc!.setup.oppSpecies[i]))}${o.fainted ? '（ひんし）' : ` ${o.hpPct}%`}` : '').filter(Boolean).join('、')}</p>
+      ／ 見えたポケモン：${view.opp.map((o: any, i: number) => o.seen ? `${esc(jn('species', doc!.setup.oppSpecies[i]))}${o.fainted ? '（ひんし）' : ` ${o.hpPct}%`}` : '').filter(Boolean).join('、')}</p>
     ${view.notes.length ? `<p class="warn">${view.notes.map(esc).join('<br>')}</p>` : ''}
   </section>
   <section class="box"><h2>おすすめ（上位3手）</h2>
@@ -268,12 +268,12 @@ function renderBattle() {
     </div>
   </section>
   ${ended ? `<section class="box"><h2>対戦が終わりました（${ourAlive === 0 ? '負け' : '勝ち'}）</h2>
-    <p>${ourAlive === 0 ? 'こちらの3体がすべて倒れました。' : '相手の3体がすべて倒れました。'}記録を保存するか、保存せずに終えてください。</p>
+    <p>${ourAlive === 0 ? 'こちらの3匹がすべて倒れました。' : '相手の3匹がすべて倒れました。'}記録を保存するか、保存せずに終えてください。</p>
     <p><button id="b-end2" class="primary big">対戦を終える（記録を保存）</button> <button id="b-discard2" class="big">保存せずに終える</button></p></section>`
-  : pend.length ? `<section class="box turn"><h2>死に出し（倒れた体の交代先）</h2>
-    <p class="muted">おすすめ（上）は、出す体ごとの勝率です。出した体を押してください。</p>
-    ${pend.includes(0) ? `<h3>こちらが出す体</h3><div class="choices">${us.mons.map((m: any, i: number) => m.hp > 0 ? `<label class="btn big"><input type="radio" name="r-our" value="${i}"> ${esc(jn('species', m.set.species))}</label>` : '').join('')}</div>` : ''}
-    ${pend.includes(1) ? `<h3>相手が出した体</h3><div class="choices">${view.opp.map((o: any, i: number) => !o.fainted && i !== oaIdx ? `<label class="btn big"><input type="radio" name="r-opp" value="${i}"> ${esc(jn('species', doc!.setup.oppSpecies[i]))}</label>` : '').join('')}</div>` : ''}
+  : pend.length ? `<section class="box turn"><h2>死に出し（倒れたポケモンの交代先）</h2>
+    <p class="muted">おすすめ（上）は、出すポケモンごとの勝率です。出したポケモンを押してください。</p>
+    ${pend.includes(0) ? `<h3>こちらが出すポケモン</h3><div class="choices">${us.mons.map((m: any, i: number) => m.hp > 0 ? `<label class="btn big"><input type="radio" name="r-our" value="${i}"> ${esc(jn('species', m.set.species))}</label>` : '').join('')}</div>` : ''}
+    ${pend.includes(1) ? `<h3>相手が出したポケモン</h3><div class="choices">${view.opp.map((o: any, i: number) => !o.fainted && i !== oaIdx ? `<label class="btn big"><input type="radio" name="r-opp" value="${i}"> ${esc(jn('species', doc!.setup.oppSpecies[i]))}</label>` : '').join('')}</div>` : ''}
     <div id="r-result" hidden>
       <h3>出てきた後のHP <span class="muted" id="r-predmsg"></span></h3>
       <div class="hps">
@@ -302,13 +302,13 @@ function renderBattle() {
     <h3>③ 結果 <span class="muted" id="t-predmsg"></span></h3>
     <p id="row-first" hidden><strong>先に動いた</strong>：<label class="btn big"><input type="radio" name="t-first" value="us"> こちら</label><label class="btn big"><input type="radio" name="t-first" value="them"> 相手</label></p>
     <div class="hps">
-      <div class="hp"><span>相手の場の体</span><select id="t-oppactive" class="big">${oppAlive.map((x: any) => `<option value="${x.i}" ${x.i === oaIdx ? 'selected' : ''}>${esc(jn('species', doc!.setup.oppSpecies[x.i]))}</option>`).join('')}</select><span><input id="t-opphp" class="big num" type="number" inputmode="numeric" min="0" max="100" value="${oa.hpPct}"> %</span></div>
+      <div class="hp"><span>相手の場のポケモン</span><select id="t-oppactive" class="big">${oppAlive.map((x: any) => `<option value="${x.i}" ${x.i === oaIdx ? 'selected' : ''}>${esc(jn('species', doc!.setup.oppSpecies[x.i]))}</option>`).join('')}</select><span><input id="t-opphp" class="big num" type="number" inputmode="numeric" min="0" max="100" value="${oa.hpPct}"> %</span></div>
       <div class="hp" id="opp-other-wrap"></div>
-      <div class="hp"><span>こちらの場の体</span><select id="t-ouractive" class="big">${us.mons.map((m: any, i: number) => `<option value="${i}" ${i === us.active ? 'selected' : ''}>${esc(jn('species', m.set.species))}</option>`).join('')}</select></div>
+      <div class="hp"><span>こちらの場のポケモン</span><select id="t-ouractive" class="big">${us.mons.map((m: any, i: number) => `<option value="${i}" ${i === us.active ? 'selected' : ''}>${esc(jn('species', m.set.species))}</option>`).join('')}</select></div>
       ${[us.active, ...us.mons.map((_: any, i: number) => i).filter((i: number) => i !== us.active)].map((i: number) => { const m = us.mons[i]; return `<div class="hp"><span class="t-ourname" data-i="${i}">${esc(jn('species', m.set.species))}</span><span><input class="t-ourhp big num" data-i="${i}" type="number" inputmode="numeric" min="0" max="${maxhp(m.set)}" value="${m.hp}"> /${maxhp(m.set)}</span></div>`; }).join('')}
     </div>
-    <p>状態異常：こちらの場の体 <select id="t-ourstatus" class="big">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (ua.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select>
-      相手の場の体 <select id="t-oppstatus" class="big">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (oa.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></p>
+    <p>状態異常：こちらの場のポケモン <select id="t-ourstatus" class="big">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (ua.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      相手の場のポケモン <select id="t-oppstatus" class="big">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (oa.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></p>
     <details><summary>ほかに起きたこと（急所・持ち物や特性の発動。あったときだけ）</summary>
     <p><strong>急所</strong>：<label class="btn"><input type="checkbox" id="t-critopp"> こちらの攻撃が急所</label> <label class="btn"><input type="checkbox" id="t-critus"> 相手の攻撃が急所</label>
       <span class="muted">（入れなければ「分からない」として計算します）</span></p>
@@ -416,7 +416,7 @@ function bindBattle() {
   };
 }
 
-/** ターンの入力の動き：行動に合わせて場の体をそろえ、結果を予想して入れる。手で直した欄は上書きしない。 */
+/** ターンの入力の動き：行動に合わせて場のポケモンをそろえ、結果を予想して入れる。手で直した欄は上書きしない。 */
 function bindTurn(radio: (n: string) => string) {
   const us = ourSide();
   const startOpp = oppActiveIdx();
@@ -425,7 +425,7 @@ function bindTurn(radio: (n: string) => string) {
   const hpOf = (i: number) => Number((document.querySelector(`.t-ourhp[data-i="${i}"]`) as HTMLInputElement).value);
   let pred: any = null;
   const otherVals = new Map<number, { v: string; touched: boolean }>();
-  // 相手の体で、ターンの後の場の体ではないが、そのターンに場にいた体（ターンの始めの場の体・交代先）の HP の欄
+  // 相手のポケモンで、ターンの後の場のポケモンではないが、そのターンに場にいたポケモン（ターンの始めの場のポケモン・交代先）の HP の欄
   const renderOppOthers = () => {
     const wrap = document.getElementById('opp-other-wrap')!;
     wrap.querySelectorAll<HTMLInputElement>('input.t-oppother').forEach(x => otherVals.set(Number(x.dataset.i), { v: x.value, touched: !!x.dataset.touched }));
@@ -451,7 +451,7 @@ function bindTurn(radio: (n: string) => string) {
     (document.getElementById('row-othermove') as HTMLElement).hidden = opp !== 'other';
     renderOppOthers(); labels();
   };
-  // 行動を選んだら、ターンの後の場の体を交代先にそろえる（手で選び直していなければ）
+  // 行動を選んだら、ターンの後の場のポケモンを交代先にそろえる（手で選び直していなければ）
   const alignActives = () => {
     const our = radio('t-our'), opp = radio('t-opp');
     // 交代先のボタンで入れた場のポケモンは、交代技でない行動に選び直したら取り消す
@@ -466,7 +466,7 @@ function bindTurn(radio: (n: string) => string) {
   const touch = (el: HTMLElement) => { el.dataset.touched = '1'; };
   document.querySelectorAll<HTMLInputElement>('.t-ourhp').forEach(x => x.addEventListener('input', () => { touch(x); update(); }));
   oppHp.addEventListener('input', () => touch(oppHp));
-  // 場の体・先に動いた側を直したら、その条件で予想し直す（交代技・ドラゴンテール等の交代先や、先手・後手で、どの体がダメージを受けるかが変わる）
+  // 場のポケモン・先に動いた側を直したら、その条件で予想し直す（交代技・ドラゴンテール等の交代先や、先手・後手で、どのポケモンがダメージを受けるかが変わる）
   selOur.addEventListener('change', () => { touch(selOur); delete selOur.dataset.pivot; syncPivot(); update(); void predictNow(); });
   // 交代先のボタンを押したら、こちらの場のポケモンの欄に入れて予想し直す。欄を直したら、ボタンもそろえる
   const syncPivot = () => document.querySelectorAll<HTMLInputElement>('input[name="t-pivot"]').forEach(x => { x.checked = !!selOur.dataset.touched && x.value === selOur.value; });
@@ -500,7 +500,7 @@ function bindTurn(radio: (n: string) => string) {
     const msg = document.getElementById('t-predmsg')!;
     msg.textContent = '（予想しています…）';
     let p: any = null;
-    // 手で決めた条件：ターンの後の場の体（交代先）と、先に動いた側
+    // 手で決めた条件：ターンの後の場のポケモン（交代先）と、先に動いた側
     const firstEl = document.querySelector<HTMLInputElement>('input[name="t-first"]:checked');
     const how = {
       ourTo: selOur.dataset.touched ? Number(selOur.value) : undefined,
@@ -513,10 +513,10 @@ function bindTurn(radio: (n: string) => string) {
     pred = p;
     const setIf = (el: HTMLInputElement | HTMLSelectElement | null, v: string | number) => { if (el && !el.dataset.touched) el.value = String(v); };
     p.ourHps.forEach((h: number, i: number) => setIf(document.querySelector(`.t-ourhp[data-i="${i}"]`), h));
-    // こちら：出ていた体（交代先）が倒れる予想なら、その体のまま（死に出しの画面で交代先を選ぶ）
+    // こちら：出ていたポケモン（交代先）が倒れる予想なら、そのポケモンのまま（死に出しの画面で交代先を選ぶ）
     const ourExp = acts.ours.kind === 'switch' ? acts.ours.to : us.active;
     setIf(selOur, p.ourHps[ourExp] <= 0 ? ourExp : p.ourActive);
-    // 相手：出ていた体が倒れて、こちらも倒れる・3体目なら、その体のまま。そうでなければ予想した場の体
+    // 相手：出ていたポケモンが倒れて、こちらも倒れる・3匹目なら、そのポケモンのまま。そうでなければ予想した場のポケモン
     const oppExp = acts.opp.kind === 'switch' ? acts.opp.to : startOpp;
     const oppDown = (p.oppHps?.[oppExp] ?? p.oppHpPct) <= 0;
     const stay = oppDown && (p.ourHps[ourExp] <= 0 || view.opp.filter((o: any) => o.fainted).length + 1 >= 3);
@@ -535,7 +535,7 @@ function bindTurn(radio: (n: string) => string) {
   update();
 }
 
-/** 死に出しの動き：出した体を押すと、出てきた後の HP を予想して入れる。「出して計算」で記録する。 */
+/** 死に出しの動き：出したポケモンを押すと、出てきた後の HP を予想して入れる。「出して計算」で記録する。 */
 function bindReplace(radio: (n: string) => string) {
   const us = ourSide();
   const pend: number[] = view.pending ?? [];
@@ -561,7 +561,7 @@ function bindReplace(radio: (n: string) => string) {
   document.querySelectorAll<HTMLInputElement>('input[name="r-our"], input[name="r-opp"]').forEach(x => x.addEventListener('change', preview));
   document.getElementById('r-record')!.onclick = async () => {
     const msgEl = document.getElementById('r-msg')!;
-    if (!ready()) { msgEl.textContent = pend.includes(0) && chosen().ourTo === undefined ? 'こちらが出す体を選んでください。' : '相手が出した体を選んでください。'; return; }
+    if (!ready()) { msgEl.textContent = pend.includes(0) && chosen().ourTo === undefined ? 'こちらが出すポケモンを選んでください。' : '相手が出したポケモンを選んでください。'; return; }
     const c = chosen();
     const ourHps = us.mons.map((m: any, i: number) => { const el = document.querySelector(`.r-ourhp[data-i="${i}"]`) as HTMLInputElement | null; return el ? Number(el.value) : m.hp; });
     const abText = (document.getElementById('r-oppab') as HTMLInputElement | null)?.value ?? '', itemText = (document.getElementById('r-oppitem') as HTMLInputElement | null)?.value ?? '';
@@ -599,17 +599,17 @@ async function recordTurn() {
   const oppItem = itemText ? resolve('items', itemText) : '', oppAbility = abText ? resolve('abilities', abText) : '';
   if (itemText && !oppItem) { msgEl.textContent = '相手の持ち物の名前が分かりません。'; return; }
   if (abText && !oppAbility) { msgEl.textContent = '相手の特性の名前が分かりません。'; return; }
-  // 画面の並び（場の体が先頭）ではなく、欄の体の番号（data-i）の順に読む
+  // 画面の並び（場のポケモンが先頭）ではなく、欄のポケモンの番号（data-i）の順に読む
   const ourHps: number[] = [];
   document.querySelectorAll<HTMLInputElement>('.t-ourhp').forEach(x => { ourHps[Number(x.dataset.i)] = Number(x.value); });
-  // ターンの後の場の体（両方）と HP。こちらの場の体の HP が0なら、交代先はまだ（死に出しの画面で選ぶ）
+  // ターンの後の場のポケモン（両方）と HP。こちらの場のポケモンの HP が0なら、交代先はまだ（死に出しの画面で選ぶ）
   const ourActive = Number((document.getElementById('t-ouractive') as HTMLSelectElement).value);
   const oppActive = Number((document.getElementById('t-oppactive') as HTMLSelectElement).value);
   const oppHpPct = Number((document.getElementById('t-opphp') as HTMLInputElement).value);
   const oppHps: Record<number, number> = {};
   document.querySelectorAll<HTMLInputElement>('input.t-oppother').forEach(x => { oppHps[Number(x.dataset.i)] = Number(x.value); });
   const oppDownAfter = view.opp.filter((o: any, i: number) => o.fainted || (oppHps[i] !== undefined && oppHps[i] <= 0) || (i === oppActive && oppHpPct <= 0)).length;
-  if (oppHpPct <= 0 && ourHps[ourActive] > 0 && oppDownAfter < 3) { msgEl.textContent = '相手の場の体が倒れたときは、相手が出した体を「相手の場の体」で選び、倒れた体の HP は0にしてください。'; return; }
+  if (oppHpPct <= 0 && ourHps[ourActive] > 0 && oppDownAfter < 3) { msgEl.textContent = '相手の場のポケモンが倒れたときは、相手が出したポケモンを「相手の場のポケモン」で選び、倒れたポケモンの HP は0にしてください。'; return; }
   const ourStatus = (document.getElementById('t-ourstatus') as HTMLSelectElement).value as StatusID;
   const oppStatus = (document.getElementById('t-oppstatus') as HTMLSelectElement).value as StatusID;
   const critOpp = (document.getElementById('t-critopp') as HTMLInputElement).checked, critUs = (document.getElementById('t-critus') as HTMLInputElement).checked;
