@@ -44,7 +44,7 @@ self.onmessage = async (ev: MessageEvent) => {
     } else if (msg.type === 'replacePreview') {
       (self as any).postMessage({ type: 'replacePreview', pred: an!.replace(msg.input, true) });
     } else if (msg.type === 'predict') {
-      (self as any).postMessage({ type: 'predict', pred: an!.predict(msg.input) });
+      (self as any).postMessage({ type: 'predict', pred: an!.predict(msg.input, 24, msg.how ?? {}) });
     } else if (msg.type === 'edit') {
       an!.applyVisible(an!.pos, msg.visible);
       (self as any).postMessage({ type: 'view', view: view() });

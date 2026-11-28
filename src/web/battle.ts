@@ -455,10 +455,11 @@ function bindTurn(radio: (n: string) => string) {
   const touch = (el: HTMLElement) => { el.dataset.touched = '1'; };
   document.querySelectorAll<HTMLInputElement>('.t-ourhp').forEach(x => x.addEventListener('input', () => { touch(x); update(); }));
   oppHp.addEventListener('input', () => touch(oppHp));
-  selOur.addEventListener('change', () => { touch(selOur); update(); });
-  selOpp.addEventListener('change', () => { touch(selOpp); const i = Number(selOpp.value); if (!oppHp.dataset.touched) oppHp.value = String(pred?.oppHps?.[i] ?? view.opp[i].hpPct); update(); });
+  // 場の体・先に動いた側を直したら、その条件で予想し直す（交代技・ドラゴンテール等の交代先や、先手・後手で、どの体がダメージを受けるかが変わる）
+  selOur.addEventListener('change', () => { touch(selOur); update(); void predictNow(); });
+  selOpp.addEventListener('change', () => { touch(selOpp); const i = Number(selOpp.value); if (!oppHp.dataset.touched) oppHp.value = String(pred?.oppHps?.[i] ?? view.opp[i].hpPct); update(); void predictNow(); });
   for (const id of ['t-ourstatus', 't-oppstatus']) document.getElementById(id)!.addEventListener('change', e => touch(e.target as HTMLElement));
-  document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(x => x.addEventListener('change', () => document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(touch)));
+  document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(x => x.addEventListener('change', () => { document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(touch); void predictNow(); }));
 
   let predGen = 0;
   const actionsNow = (): { ours: TurnInput['ours']; opp: TurnInput['opp'] } | null => {
@@ -485,7 +486,14 @@ function bindTurn(radio: (n: string) => string) {
     const msg = document.getElementById('t-predmsg')!;
     msg.textContent = '（予想しています…）';
     let p: any = null;
-    try { p = (await ask({ type: 'predict', input: acts })).pred; } catch { p = null; }
+    // 手で決めた条件：ターンの後の場の体（交代先）と、先に動いた側
+    const firstEl = document.querySelector<HTMLInputElement>('input[name="t-first"]:checked');
+    const how = {
+      ourTo: selOur.dataset.touched ? Number(selOur.value) : undefined,
+      oppTo: selOpp.dataset.touched ? Number(selOpp.value) : undefined,
+      first: firstEl?.dataset.touched && !(document.getElementById('row-first') as HTMLElement).hidden ? firstEl.value as 'us' | 'them' : undefined,
+    };
+    try { p = (await ask({ type: 'predict', input: acts, how })).pred; } catch { p = null; }
     if (gen !== predGen || !document.getElementById('t-result')) return;
     if (!p) { msg.textContent = '（予想できませんでした。画面の数字を入れてください）'; return; }
     pred = p;

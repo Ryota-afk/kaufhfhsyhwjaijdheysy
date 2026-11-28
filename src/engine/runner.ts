@@ -178,6 +178,9 @@ export function makeRunner(PS: any, FORMAT: string) {
         const a = side.active[0];
         if (a && a.fainted && side.pokemon.some((q: any) => !q.fainted && !q.isActive)) { a.switchFlag = true; needSwitch = true; }
       }
+      // 死に出しの場面は、ターンの終わりの処理（天気のダメージ・たべのこし等）が済んだ後。ターンの途中の印を立てないと、
+      // Showdown は交代の後に、ターンの始めと終わりの処理を足してしまう（sim/battle.ts の turnLoop）
+      if (needSwitch) b.midTurn = true;
       b.makeRequest(needSwitch ? 'switch' : 'move');
     }
 

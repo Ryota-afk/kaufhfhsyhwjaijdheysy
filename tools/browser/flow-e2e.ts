@@ -2,9 +2,9 @@
 // Node で Showdown の対戦を決着まで本当に打ち、利用者と同じ操作で画面に入れていく。倒れた後の交代先は無作為に選び、
 // こちらが倒れたら死に出しの画面で入れる。毎回、画面の状態（記録係の盤面）が本当と一致するかを見る：
 //   場の体（両方）、こちらの3体の HP、相手の見えた体の HP% と倒れたか、死に出しの場面か、決着したか。ページのエラーがないか。
-// 使い方：npx tsx tools/browser/flow-e2e.ts [試合数=3] [種=1] [計算の秒数=2]
+// 使い方：npx tsx tools/browser/flow-e2e.ts [試合数=3] [種=1] [計算の秒数=2] [交代技を選ぶ割合=0]
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { loadShowdown, FORMAT } from '../showdown/load.ts';
 import { makeRunner } from '../../src/engine/runner.ts';
@@ -13,7 +13,7 @@ import type { Action, Position, StatusID } from '../../src/engine/position.ts';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
-const [GAMES, SEED, SECS] = [3, 1, 2].map((d, i) => Number(process.argv[2 + i] ?? d));
+const [GAMES, SEED, SECS, PIVOT] = [3, 1, 2, 0].map((d, i) => Number(process.argv[2 + i] ?? d));
 const PS = loadShowdown(); const dex = PS.Dex.forFormat(FORMAT); const Runner = makeRunner(PS, FORMAT);
 const ja = JSON.parse(readFileSync('data/names/ja.json', 'utf8'));
 const party = JSON.parse(readFileSync('test/fixtures/party-team2-screen.json', 'utf8'));
@@ -25,6 +25,10 @@ const J = (kind: string, n: string) => ja[kind][toID(n)] ?? n;
 const base = (sp: string) => dex.species.get(sp).baseSpecies;
 let st = SEED * 7907 + 3; const rand = () => { st = (st * 16807) % 2147483647; return st / 2147483647; };
 const pick = <T,>(xs: T[]) => xs[Math.floor(rand() * xs.length)];
+// 打った後に交代する技（Showdown の selfSwitch）。選べるとき、PIVOT の割合で選ぶ
+const isPivot = (b: any, si: number, a: Action | null) => { if (!a || a.kind !== 'move') return false; return !!dex.moves.get(b.sides[si].active[0].moveSlots[a.slot]?.id).selfSwitch; };
+const pickAct = (b: any, si: number, xs: Action[]) => { const pv = xs.filter(a => isPivot(b, si, a)); return pv.length && rand() < PIVOT ? pick(pv) : pick(xs); };
+let pivots = 0, pivotFixes = 0, pivotWrong = 0, plain = 0, plainFixes = 0, plainWrong = 0;
 const setOf = (m: any) => ({ species: m.species, item: toID(m.item), ability: toID(m.ability), nature: m.nature, evs: m.evs, moves: m.moves.map(toID) });
 
 const server = spawn('npx', ['vite', 'preview', '--port', '4181', '--strictPort'], { stdio: 'ignore', detached: true });
@@ -74,7 +78,7 @@ for (let g = 0; g < GAMES; g++) {
     const ah = v.pos.sides[0].mons.map((m: any) => m.hp), th = truthHps();
     if (JSON.stringify(ah) !== JSON.stringify(th)) note('こちらの HP', `${where} 画面 ${JSON.stringify(ah)} ／ 本当 ${JSON.stringify(th)}`);
     const oa = v.oppOrder[v.pos.sides[1].active], toa = oppIdxOf(b.sides[1].active[0]);
-    if (oa !== toa) note('相手の場の体', `${where} 画面 ${oppSpecies[oa]} ／ 本当 ${oppSpecies[toa]}`);
+    if (oa !== toa) { note('相手の場の体', `${where} 画面 ${oppSpecies[oa]} ／ 本当 ${oppSpecies[toa]}`); if (process.env.WHY_DUMP) writeFileSync(`${process.env.WHY_DUMP}/opp-${where.replace(/\s/g, '_')}.json`, await page.evaluate(() => localStorage.getItem('champions.currentBattle')) ?? ''); }
     for (const p of b.sides[1].pokemon) {
       const i = oppIdxOf(p); if (!v.opp[i].seen) continue;
       const pct = shownPercent(p.hp, p.maxhp);
@@ -87,14 +91,17 @@ for (let g = 0; g < GAMES; g++) {
   let ops = 0;
   const clickRadio = async (name: string, value: string) => { await page.click(`label:has(> input[name="${name}"][value="${value}"])`); ops++; };
   const setNum = async (sel: string, v: number) => { if (String(v) !== await page.$eval(sel, (x: any) => x.value)) { await page.fill(sel, String(v)); await page.dispatchEvent(sel, 'input'); ops++; } };
-  const setSel = async (sel: string, v: string) => { if (v !== await page.$eval(sel, (x: any) => x.value)) { await page.selectOption(sel, v); ops++; } };
+  const setSel = async (sel: string, v: string) => { if (v !== await page.$eval(sel, (x: any) => x.value)) { await page.selectOption(sel, v); ops++; return true; } return false; };
+  // 場の体を直すと、画面がその条件で予想し直す。予想が入り終わるまで待つ
+  const waitPred = async () => page.waitForFunction(() => /予想を入れました|予想できません/.test(document.getElementById('t-predmsg')?.textContent ?? ''), null, { timeout: 30000 });
   for (let t = 0; t < 60 && !b.ended; t++) {
     const l0 = truth.legalActions(0), l1 = truth.legalActions(1);
     const foeBefore = b.sides[1].active[0];
     const from = b.log.length, turnBefore = b.turn;
-    let a0: Action | null = null, a1: Action | null = null;
+    let a0: Action | null = null, a1: Action | null = null, pivotTurn = false;
     for (let tries = 0; tries < 8; tries++) {
-      a0 = l0.length ? pick(l0) : null; a1 = l1.length ? pick(l1) : null;
+      a0 = l0.length ? pickAct(b, 0, l0) : null; a1 = l1.length ? pickAct(b, 1, l1) : null;
+      pivotTurn = isPivot(b, 0, a0) || isPivot(b, 1, a1);
       for (const sd of b.sides) if (sd.activeRequest && !sd.activeRequest.wait) sd.choice = { cantUndo: false, error: '', actions: [], forcedSwitchesLeft: 0, forcedPassesLeft: 0, switchIns: new Set(), zMove: false, mega: false, ultra: false, dynamax: false, terastallize: false };
       truth.play(a0, a1, 0);
       if (b.turn !== turnBefore || b.ended || b.requestState === 'switch') break;
@@ -109,6 +116,7 @@ for (let g = 0; g < GAMES; g++) {
       if (oppNeeds) b.choose('p2', truth.choiceString(1, pick(truth.legalActions(1))));
     }
     const lines = (b.log as string[]).slice(from);
+    const v0hps: number[] = await page.evaluate(() => (window as any).__battle.view.pos.sides[0].mons.map((m: any) => m.hp));
     const own = (l: string) => !l.includes('[from]') || l.includes('[from] lockedmove');
     ops = 0;
     // ① 相手の行動 ② こちらの行動
@@ -131,18 +139,27 @@ for (let g = 0; g < GAMES; g++) {
     const moveLines = lines.filter(l => /^\|move\|p[12]a:/.test(l) && own(l));
     if (a0?.kind === 'move' && ourMoved && a1?.kind !== 'switch' && oppMoveLine && moveLines.length >= 2) {
       const want = moveLines[0].startsWith('|move|p2a') ? 'them' : 'us';
-      if (await page.$eval('input[name="t-first"]:checked', (x: any) => x.value).catch(() => '') !== want) await clickRadio('t-first', want);
+      if (await page.$eval('input[name="t-first"]:checked', (x: any) => x.value).catch(() => '') !== want) { await clickRadio('t-first', want); await waitPred(); }
     }
     const toa = oppIdxOf(b.sides[1].active[0]);
-    await setSel('#t-oppactive', String(toa));
+    // 場の体（交代技の交代先など）を先に直し、予想し直すのを待ってから、ほかの欄を直す
+    if (await setSel('#t-oppactive', String(toa))) await waitPred();
+    if (await setSel('#t-ouractive', String(ourIdxOf(b.sides[0].active[0])))) await waitPred();
     await setNum('#t-opphp', shownPercent(b.sides[1].active[0].hp, b.sides[1].active[0].maxhp));
     for (const el of await page.$$('input.t-oppother')) { const i = Number(await el.getAttribute('data-i')); const pct = pctOf(i); if (pct !== null) await setNum(`input.t-oppother[data-i="${i}"]`, pct); }
-    await setSel('#t-ouractive', String(ourIdxOf(b.sides[0].active[0])));
     const th = truthHps();
+    const opsBeforeHp = ops;
+    // 予想が「別の体」を外したか：予想が無傷なのに本当は減った、または予想が減ったのに本当は変わらない欄
+    const shown = await Promise.all([0, 1, 2].map(k => page.$eval(`.t-ourhp[data-i="${k}"]`, (x: any) => Number(x.value))));
+    const beforeHps = v0hps;
+    const wrongMon = [0, 1, 2].filter(k => (shown[k] === beforeHps[k]) !== (th[k] === beforeHps[k])).length;
+    if (wrongMon && process.env.WHY) console.log(`外れ 試合${g} ターン${t}${pivotTurn ? '（交代技）' : ''}：${await page.$eval('#t-predmsg', (x: any) => x.textContent)} 前 ${JSON.stringify(beforeHps)} 予想 ${JSON.stringify(shown)} 本当 ${JSON.stringify(th)}\n    ` + lines.filter(l => /^\|(move|switch|drag|-damage|-heal|-crit|-miss|-activate|-immune|faint|-fail)\|/.test(l)).join(' ').slice(0, 700));
     for (let k = 0; k < 3; k++) await setNum(`.t-ourhp[data-i="${k}"]`, th[k]);
+    if (pivotTurn) { pivots++; pivotFixes += ops - opsBeforeHp; pivotWrong += wrongMon; } else { plain++; plainFixes += ops - opsBeforeHp; plainWrong += wrongMon; }
     await setSel('#t-ourstatus', b.sides[0].active[0].fainted ? (await page.$eval('#t-ourstatus', (x: any) => x.value)) : (b.sides[0].active[0].status || ''));
     await setSel('#t-oppstatus', b.sides[1].active[0].fainted ? (await page.$eval('#t-oppstatus', (x: any) => x.value)) : (b.sides[1].active[0].status || ''));
     await page.click('#t-record'); ops++;
+    if (wrongMon && process.env.WHY_DUMP) { const d = await page.evaluate(() => localStorage.getItem('champions.currentBattle')); writeFileSync(`${process.env.WHY_DUMP}/g${g}t${t}.json`, d ?? ''); }
     const msg = await page.$eval('#t-msg', (x: any) => x.textContent).catch(() => '');
     if (msg) { note('記録できない', `試合${g} ターン${t}：${msg}`); break; }
     await waitIdle();
@@ -179,6 +196,7 @@ for (let g = 0; g < GAMES; g++) {
 await browser.close();
 try { process.kill(-server.pid!); } catch { /* もう止まっている */ }
 console.log(`試合 ${GAMES}、ターン ${turns}、死に出し ${replaces}、決着 ${ends}。1ターンの操作の平均 ${(opsTotal / Math.max(1, opsTurns)).toFixed(1)}回`);
+console.log(`こちらの HP の予想（場の体を直して予想し直した後）：交代技のターン ${pivots}：直した欄 ${pivotFixes}、うち別の体を外した欄 ${pivotWrong}／ほかのターン ${plain}：直した欄 ${plainFixes}、うち別の体を外した欄 ${plainWrong}`);
 console.log(Object.keys(bad).length ? `ずれ：${JSON.stringify(bad)}` : 'ずれ：なし');
 for (const x of samples) console.log('  ' + x);
 console.log(`ページのエラー ${errors.length}件 ${JSON.stringify(errors.slice(0, 5))}`);
