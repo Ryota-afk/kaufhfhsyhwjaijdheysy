@@ -1,0 +1,54 @@
+{
+ "base": {
+  "c": 0.7,
+  "depth": 4,
+  "dets": 8
+ },
+ "cand": {
+  "c": 0.5,
+  "depth": 4,
+  "dets": 8
+ },
+ "iters": 8000,
+ "shard": 2,
+ "shards": 6,
+ "done": {
+  "74": [
+   0.5,
+   0
+  ],
+  "80": [
+   0,
+   0.5
+  ]
+ },
+ "halves": {
+  "86": {
+   "A": 0
+  }
+ },
+ "errors": 23,
+ "errorSamples": [
+  "側1：いちばんの手は選べず、2番目の手を打った（探索の上位 switch 2、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":1}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"move\",\"slot\":3}、本当の場 Scovillain、記録係の場 scovillain）",
+  "側1：いちばんの手は選べず、2番目の手を打った（探索の上位 switch 2、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":1}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"move\",\"slot\":3}、本当の場 Scovillain、記録係の場 scovillain）",
+  "側1：いちばんの手は選べず、2番目の手を打った（探索の上位 switch 3、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"move\",\"slot\":3}、本当の場 Dragalge-Mega、記録係の場 dragalge）",
+  "側1：いちばんの手は選べず、2番目の手を打った（探索の上位 switch 2、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":1}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"move\",\"slot\":3}、本当の場 Toxapex、記録係の場 ditto）",
+  "側1：いちばんの手は選べず、5番目の手を打った（探索の上位 switch 2、move 3、move 2、move 4、選べる手 {\"kind\":\"move\",\"slot\":0}、本当の場 Toxapex、記録係の場 ditto）",
+  "側1：いちばんの手は選べず、2番目の手を打った（探索の上位 switch 2、選べる手 {\"kind\":\"move\",\"slot\":0}、本当の場 Toxapex、記録係の場 ditto）",
+  "側1：いちばんの手は選べず、5番目の手を打った（探索の上位 switch 2、move 2、move 4、move 3、選べる手 {\"kind\":\"move\",\"slot\":0}、本当の場 Toxapex、記録係の場 ditto）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":1}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":1}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"move\",\"slot\":2}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、3番目の手を打った（探索の上位 move 4、move 3、選べる手 {\"kind\":\"move\",\"slot\":0}{\"kind\":\"switch\",\"to\":2}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}、本当の場 Corviknight、記録係の場 corviknight）",
+  "側2：いちばんの手は選べず、2番目の手を打った（探索の上位 move 4、選べる手 {\"kind\":\"move\",\"slot\":0}、本当の場 Corviknight、記録係の場 corviknight）"
+ ],
+ "gameSeconds": 4967.2919999999995
+}
