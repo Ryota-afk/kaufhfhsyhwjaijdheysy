@@ -296,6 +296,8 @@ function renderBattle() {
       ${us.mons.map((m: any, i: number) => i !== us.active && m.hp > 0 ? `<label class="btn big"><input type="radio" name="t-our" value="switch ${i}"> 交代→${esc(jn('species', m.set.species))}</label>` : '').join('')}
       <label class="btn big"><input type="radio" name="t-our" value="none"> 動けなかった</label></div>
     ${canMegaUs ? '<p><label class="btn"><input type="checkbox" id="t-ourmega"> メガシンカした</label></p>' : ''}
+    <div id="row-pivot" hidden><h3>交代先（交代技で出したポケモン）</h3>
+      <div class="choices">${us.mons.map((m: any, i: number) => i !== us.active && m.hp > 0 ? `<label class="btn big"><input type="radio" name="t-pivot" value="${i}"> ${esc(jn('species', m.set.species))}</label>` : '').join('')}</div></div>
     <div id="t-result" hidden>
     <h3>③ 結果 <span class="muted" id="t-predmsg"></span></h3>
     <p id="row-first" hidden><strong>先に動いた</strong>：<label class="btn big"><input type="radio" name="t-first" value="us"> こちら</label><label class="btn big"><input type="radio" name="t-first" value="them"> 相手</label></p>
@@ -439,8 +441,12 @@ function bindTurn(radio: (n: string) => string) {
     const after = Number(selOur.value);
     document.querySelectorAll<HTMLElement>('.t-ourname').forEach(el => { const i = Number(el.dataset.i); el.textContent = jn('species', us.mons[i].set.species) + (hpOf(i) <= 0 ? '（倒れた）' : i === after ? '（場）' : '（控え）'); });
   };
+  // 交代技（ボルトチェンジ・とんぼがえり等）を選んだら、交代先のボタンを出す（控えが残っているときだけ）
+  const pivotRow = document.getElementById('row-pivot') as HTMLElement | null;
+  const isPivot = (our: string) => our.startsWith('move ') && !!dex.moves[toID(us.mons[us.active].set.moves[Number(our.split(' ')[1])] ?? '')]?.selfSwitch;
   const update = () => {
     const our = radio('t-our'), opp = radio('t-opp');
+    if (pivotRow) pivotRow.hidden = !(isPivot(our) && pivotRow.querySelector('input'));
     (document.getElementById('row-first') as HTMLElement).hidden = !(our.startsWith('move') && (opp.startsWith('move') || opp === 'other'));
     (document.getElementById('row-othermove') as HTMLElement).hidden = opp !== 'other';
     renderOppOthers(); labels();
@@ -448,6 +454,8 @@ function bindTurn(radio: (n: string) => string) {
   // 行動を選んだら、ターンの後の場の体を交代先にそろえる（手で選び直していなければ）
   const alignActives = () => {
     const our = radio('t-our'), opp = radio('t-opp');
+    // 交代先のボタンで入れた場のポケモンは、交代技でない行動に選び直したら取り消す
+    if (selOur.dataset.pivot && !isPivot(our)) { delete selOur.dataset.pivot; delete selOur.dataset.touched; document.querySelectorAll<HTMLInputElement>('input[name="t-pivot"]').forEach(x => { x.checked = false; }); }
     if (!selOur.dataset.touched) selOur.value = String(our.startsWith('switch') ? Number(our.split(' ')[1]) : us.active);
     if (!selOpp.dataset.touched) {
       const to = opp.startsWith('switch') ? Number(opp.split(' ')[1]) : startOpp;
@@ -459,7 +467,10 @@ function bindTurn(radio: (n: string) => string) {
   document.querySelectorAll<HTMLInputElement>('.t-ourhp').forEach(x => x.addEventListener('input', () => { touch(x); update(); }));
   oppHp.addEventListener('input', () => touch(oppHp));
   // 場の体・先に動いた側を直したら、その条件で予想し直す（交代技・ドラゴンテール等の交代先や、先手・後手で、どの体がダメージを受けるかが変わる）
-  selOur.addEventListener('change', () => { touch(selOur); update(); void predictNow(); });
+  selOur.addEventListener('change', () => { touch(selOur); delete selOur.dataset.pivot; syncPivot(); update(); void predictNow(); });
+  // 交代先のボタンを押したら、こちらの場のポケモンの欄に入れて予想し直す。欄を直したら、ボタンもそろえる
+  const syncPivot = () => document.querySelectorAll<HTMLInputElement>('input[name="t-pivot"]').forEach(x => { x.checked = !!selOur.dataset.touched && x.value === selOur.value; });
+  document.querySelectorAll<HTMLInputElement>('input[name="t-pivot"]').forEach(x => x.addEventListener('change', () => { selOur.value = x.value; touch(selOur); selOur.dataset.pivot = '1'; update(); void predictNow(); }));
   selOpp.addEventListener('change', () => { touch(selOpp); const i = Number(selOpp.value); if (!oppHp.dataset.touched) oppHp.value = String(pred?.oppHps?.[i] ?? view.opp[i].hpPct); update(); void predictNow(); });
   for (const id of ['t-ourstatus', 't-oppstatus']) document.getElementById(id)!.addEventListener('change', e => touch(e.target as HTMLElement));
   document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(x => x.addEventListener('change', () => { document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(touch); void predictNow(); }));

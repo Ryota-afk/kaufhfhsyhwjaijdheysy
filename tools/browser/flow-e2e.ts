@@ -28,7 +28,7 @@ const pick = <T,>(xs: T[]) => xs[Math.floor(rand() * xs.length)];
 // 打った後に交代する技（Showdown の selfSwitch）。選べるとき、PIVOT の割合で選ぶ
 const isPivot = (b: any, si: number, a: Action | null) => { if (!a || a.kind !== 'move') return false; return !!dex.moves.get(b.sides[si].active[0].moveSlots[a.slot]?.id).selfSwitch; };
 const pickAct = (b: any, si: number, xs: Action[]) => { const pv = xs.filter(a => isPivot(b, si, a)); return pv.length && rand() < PIVOT ? pick(pv) : pick(xs); };
-let pivots = 0, pivotFixes = 0, pivotWrong = 0, plain = 0, plainFixes = 0, plainWrong = 0;
+let pivotButtons = 0, pivots = 0, pivotFixes = 0, pivotWrong = 0, plain = 0, plainFixes = 0, plainWrong = 0;
 const setOf = (m: any) => ({ species: m.species, item: toID(m.item), ability: toID(m.ability), nature: m.nature, evs: m.evs, moves: m.moves.map(toID) });
 
 const server = spawn('npx', ['vite', 'preview', '--port', '4181', '--strictPort'], { stdio: 'ignore', detached: true });
@@ -48,7 +48,10 @@ for (let g = 0; g < GAMES; g++) {
   await page.addInitScript(([p, ms]: any) => { localStorage.clear(); localStorage.setItem('champions.parties', JSON.stringify([p])); localStorage.setItem('champions.searchMs', String(ms)); }, [partyDoc, SECS * 1000]);
   await page.goto(url); await page.waitForSelector('#s-start', { timeout: 60000 });
   const team: any = pick(okTeams);
-  const picks = [0, 1, 2, 3, 4, 5].sort(() => rand() - 0.5).slice(0, 3).sort((a, b) => a - b), lead = pick(picks);
+  // LEAD=番号 のときは、その番号のポケモンを先発にして選出に入れる（交代技を持つポケモンの確かめ用）
+  const forced = process.env.LEAD !== undefined ? Number(process.env.LEAD) : -1;
+  let picks = [0, 1, 2, 3, 4, 5].sort(() => rand() - 0.5).slice(0, 3).sort((a, b) => a - b), lead = pick(picks);
+  if (forced >= 0) { if (!picks.includes(forced)) picks = [...picks.slice(0, 2), forced].sort((a, b) => a - b); lead = forced; }
   const oppPicks = [0, 1, 2, 3, 4, 5].sort(() => rand() - 0.5).slice(0, 3);
   for (let i = 0; i < 6; i++) { await page.fill(`.s-opp[data-i="${i}"]`, J('species', team.mons[i].species)); await page.dispatchEvent(`.s-opp[data-i="${i}"]`, 'change'); }
   await page.waitForFunction(() => /くじの結果|計算できません/.test(document.getElementById('s-select')?.innerText ?? ''), null, { timeout: 60000 });
@@ -98,10 +101,11 @@ for (let g = 0; g < GAMES; g++) {
     const l0 = truth.legalActions(0), l1 = truth.legalActions(1);
     const foeBefore = b.sides[1].active[0];
     const from = b.log.length, turnBefore = b.turn;
-    let a0: Action | null = null, a1: Action | null = null, pivotTurn = false;
+    let a0: Action | null = null, a1: Action | null = null, pivotTurn = false, isPivot0 = false;
+    const ourBefore = ourIdxOf(b.sides[0].active[0]);
     for (let tries = 0; tries < 8; tries++) {
       a0 = l0.length ? pickAct(b, 0, l0) : null; a1 = l1.length ? pickAct(b, 1, l1) : null;
-      pivotTurn = isPivot(b, 0, a0) || isPivot(b, 1, a1);
+      isPivot0 = isPivot(b, 0, a0); pivotTurn = isPivot0 || isPivot(b, 1, a1);
       for (const sd of b.sides) if (sd.activeRequest && !sd.activeRequest.wait) sd.choice = { cantUndo: false, error: '', actions: [], forcedSwitchesLeft: 0, forcedPassesLeft: 0, switchIns: new Set(), zMove: false, mega: false, ultra: false, dynamax: false, terastallize: false };
       truth.play(a0, a1, 0);
       if (b.turn !== turnBefore || b.ended || b.requestState === 'switch') break;
@@ -144,7 +148,13 @@ for (let g = 0; g < GAMES; g++) {
     const toa = oppIdxOf(b.sides[1].active[0]);
     // 場の体（交代技の交代先など）を先に直し、予想し直すのを待ってから、ほかの欄を直す
     if (await setSel('#t-oppactive', String(toa))) await waitPred();
-    if (await setSel('#t-ouractive', String(ourIdxOf(b.sides[0].active[0])))) await waitPred();
+    // こちらが交代技を打って入れ替わったら、②の下の交代先のボタンで入れる（ボタンが出ていることも確かめる）
+    const ourNow = ourIdxOf(b.sides[0].active[0]);
+    if (a0?.kind === 'move' && ourMoved && isPivot0 && ourNow !== ourBefore && !b.sides[0].active[0].fainted) {
+      if (!(await page.isVisible('#row-pivot'))) note('交代先のボタン', `試合${g} ターン${t}：交代技を選んだのに交代先のボタンが出ない`);
+      else { await clickRadio('t-pivot', String(ourNow)); await waitPred(); pivotButtons++; }
+    }
+    if (await setSel('#t-ouractive', String(ourNow))) await waitPred();
     await setNum('#t-opphp', shownPercent(b.sides[1].active[0].hp, b.sides[1].active[0].maxhp));
     for (const el of await page.$$('input.t-oppother')) { const i = Number(await el.getAttribute('data-i')); const pct = pctOf(i); if (pct !== null) await setNum(`input.t-oppother[data-i="${i}"]`, pct); }
     const th = truthHps();
@@ -196,6 +206,7 @@ for (let g = 0; g < GAMES; g++) {
 await browser.close();
 try { process.kill(-server.pid!); } catch { /* もう止まっている */ }
 console.log(`試合 ${GAMES}、ターン ${turns}、死に出し ${replaces}、決着 ${ends}。1ターンの操作の平均 ${(opsTotal / Math.max(1, opsTurns)).toFixed(1)}回`);
+console.log(`交代先のボタンで入れたターン ${pivotButtons}`);
 console.log(`こちらの HP の予想（場の体を直して予想し直した後）：交代技のターン ${pivots}：直した欄 ${pivotFixes}、うち別の体を外した欄 ${pivotWrong}／ほかのターン ${plain}：直した欄 ${plainFixes}、うち別の体を外した欄 ${plainWrong}`);
 console.log(Object.keys(bad).length ? `ずれ：${JSON.stringify(bad)}` : 'ずれ：なし');
 for (const x of samples) console.log('  ' + x);
