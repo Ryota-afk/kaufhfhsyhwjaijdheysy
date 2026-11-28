@@ -69,7 +69,7 @@ const leadAb = startLines.map(l => /^\|-ability\|p2a: [^|]*\|([^|]*)/.exec(l)?.[
 if (leadAb) await select('#s-oppab', toID(leadAb));
 const setupOps = ops; ops = 0;
 await click('#s-start');
-const results: { turn: number; ms: number; ops: number; top: string[]; time?: string }[] = [];
+const results: { turn: number; ms: number; ops: number; top: string[]; time?: string; fixes?: number; predMs?: number }[] = [];
 const waitResult = async () => {
   const t0 = Date.now();
   try {
@@ -101,22 +101,32 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
   const moveLines = lines.filter(l => /^\|move\|p[12]a:/.test(l) && own(l));
   const oppMoveLine = lines.find(l => l.startsWith(`|move|p2a: ${oppActiveBefore.name}|`) && own(l));
   ops = 0;
-  // こちらの行動
-  const ourMoved = lines.some(l => l.startsWith('|move|p1a') && own(l));
-  if (a0?.kind === 'switch') await click(`input[name="t-our"][value="switch ${a0.to}"]`);
-  else if (a0?.kind === 'move' && ourMoved) await click(`input[name="t-our"][value="move ${a0.slot}"]`);
-  else await click('input[name="t-our"][value="none"]');
-  if (lines.some(l => l.startsWith('|-mega|p1a'))) await click('#t-ourmega');
-  // 相手の行動
-  if (a1?.kind === 'switch') await click(`input[name="t-opp"][value="switch ${oppIdx[a1.to]}"]`);
+  // ① 相手の行動（ボタンは label を押す）
+  const clickRadio = async (name: string, value: string) => { await page.click(`label:has(> input[name="${name}"][value="${value}"])`); ops++; };
+  if (a1?.kind === 'switch') await clickRadio('t-opp', `switch ${oppIdx[a1.to]}`);
   else if (oppMoveLine) {
     const mv = oppMoveLine.split('|')[3];
-    const btn = await page.$(`input[name="t-opp"][value="move ${toID(mv)}"]`) ?? await page.$(`input[name="t-opp"][value="move ${mv}"]`);
-    if (btn) { await btn.click(); ops++; } else { await click('input[name="t-opp"][value="other"]'); await fill('#t-oppmove', J('moves', mv)); }
-  } else await click('input[name="t-opp"][value="none"]');
+    if (await page.$(`input[name="t-opp"][value="move ${toID(mv)}"]`)) await clickRadio('t-opp', `move ${toID(mv)}`);
+    else { await clickRadio('t-opp', 'other'); await fill('#t-oppmove', J('moves', mv)); }
+  } else await clickRadio('t-opp', 'none');
   if (lines.some(l => l.startsWith('|-mega|p2a'))) await click('#t-oppmega');
+  // ② こちらの行動
+  const ourMoved = lines.some(l => l.startsWith('|move|p1a') && own(l));
+  if (a0?.kind === 'switch') await clickRadio('t-our', `switch ${a0.to}`);
+  else if (a0?.kind === 'move' && ourMoved) await clickRadio('t-our', `move ${a0.slot}`);
+  else await clickRadio('t-our', 'none');
+  if (lines.some(l => l.startsWith('|-mega|p1a'))) await click('#t-ourmega');
+  // ③ 予想が入るのを待ってから、本当の結果と違う欄だけ直す
+  const tPred = Date.now();
+  await page.waitForFunction(() => /予想を入れました|予想できません/.test(document.getElementById('t-predmsg')?.textContent ?? ''), null, { timeout: 30000 });
+  const predMs = Date.now() - tPred;
+  const opsBeforeFix = ops;
   const ourMovedMove = a0?.kind === 'move' && ourMoved, oppMoved = a1?.kind !== 'switch' && !!oppMoveLine;
-  if (ourMovedMove && oppMoved && moveLines.length >= 2) await click(`input[name="t-first"][value="${moveLines[0].startsWith('|move|p2a') ? 'them' : 'us'}"]`);
+  if (ourMovedMove && oppMoved && moveLines.length >= 2) {
+    const want = moveLines[0].startsWith('|move|p2a') ? 'them' : 'us';
+    const cur = await page.$eval('input[name="t-first"]:checked', (x: any) => x.value).catch(() => '');
+    if (cur !== want) await clickRadio('t-first', want);
+  }
   // 「ほかに起きたこと」は、要るときだけ開く（開くのも1回の操作）
   let detailsOpen = false;
   const openDetails = async () => { if (!detailsOpen) { await click('details > summary'); detailsOpen = true; } };
@@ -147,9 +157,10 @@ for (let t = 0; t < TURNS && !b.ended; t++) {
   const defOpp = await page.evaluate((i: number) => (window as any).__battle.view.opp[i].status || '', oppActive6);
   if ((s1.status || '') !== defOpp) { await openDetails(); await select('#t-oppstatus', s1.status || ''); }
   const turnOps = ops;
+  const fixes = ops - opsBeforeFix;
   await page.click('#t-record');
   const ms2 = await waitResult();
-  results.push({ turn: t + 1, ms: ms2, ops: turnOps + 1, top: await page.$$eval('#result tr td strong', (xs: any[]) => xs.map(x => x.textContent)), time: (await page.textContent('#r-time'))?.split('。')[0] });
+  results.push({ turn: t + 1, ms: ms2, ops: turnOps + 1, fixes, predMs, top: await page.$$eval('#result tr td strong', (xs: any[]) => xs.map(x => x.textContent)), time: (await page.textContent('#r-time'))?.split('。')[0] });
   // 3ターン目の後で読み込み直す
   if (t === 2) {
     const before = await page.evaluate(() => JSON.stringify((window as any).__battle.view.pos));
@@ -180,7 +191,7 @@ const discard = await page.evaluate(() => ({ battle: localStorage.getItem('champ
 console.log(`${discard.battle === null && discard.logs === logsBefore && discard.text ? '合格' : '不合格'}：保存せずに終えると、準備の画面に戻り、今の対戦の記録が消え、保存した記録は増えない ${JSON.stringify(discard)}`);
 await browser.close();
 try { process.kill(-server.pid!); } catch { /* もう止まっている */ }
-for (const r of results) console.log(`ターン${r.turn}：上位 ${r.top.join(' ／ ')}（${r.top.length}手）、記録→表示 ${(r.ms / 1000).toFixed(1)}秒、操作 ${r.ops}回${r.time ? `（画面の表示：${r.time}）` : ''}`);
+for (const r of results) console.log(`ターン${r.turn}：上位 ${r.top.join(' ／ ')}（${r.top.length}手）、記録→表示 ${(r.ms / 1000).toFixed(1)}秒、操作 ${r.ops}回${r.fixes !== undefined ? `（うち予想を直した ${r.fixes}回、予想まで ${((r.predMs ?? 0) / 1000).toFixed(1)}秒）` : ''}${r.time ? `（画面の表示：${r.time}）` : ''}`);
 console.log(`準備の操作 ${setupOps}回`);
 const allThree = results.every(r => r.top.length >= 2);
 const inTime = results.filter(r => r.turn > 0).every(r => r.ms <= SECS * 1000);

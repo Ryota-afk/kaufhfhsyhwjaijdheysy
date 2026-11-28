@@ -48,8 +48,12 @@ let message = '';
 
 // ---- Worker ----
 const analysis = new Worker(new URL('../engine/browser/analysis-worker.ts', import.meta.url), { type: 'module' });
+// 記録係への問い合わせは1つずつ順番に（同時に2つ送ると、返事を取り違えるため）
+let askChain: Promise<unknown> = Promise.resolve();
 function ask(msg: any): Promise<any> {
-  return new Promise((res, rej) => { analysis.onmessage = ev => ev.data.type === 'error' ? rej(new Error(ev.data.message)) : res(ev.data); analysis.postMessage(msg); });
+  const p = askChain.then(() => new Promise((res, rej) => { analysis.onmessage = ev => ev.data.type === 'error' ? rej(new Error(ev.data.message)) : res(ev.data); analysis.postMessage(msg); }));
+  askChain = p.catch(() => undefined);
+  return p;
 }
 const pool = new SearchPool(Math.max(2, navigator.hardwareConcurrency || 2), () => new Worker(new URL('../engine/browser/search-worker.ts', import.meta.url), { type: 'module' }));
 
@@ -235,9 +239,11 @@ function renderBattle() {
   const canMegaOpp = !them.megaUsed && !oaMon.mega && Object.values(dex.items).some((it: any) => it.megaStone && Object.keys(it.megaStone).some((k: string) => toID(k) === oppSpId || toID(k) === toID(dex.species[oppSpId]?.baseSpecies ?? '')));
   const oppAlive = view.opp.map((o: any, i: number) => ({ o, i })).filter((x: any) => !x.o.fainted);
   const top = result?.top ?? [];
+  // 相手の技のボタン：見えた技を先に、続いて推定で多い技（合わせて最大6つ）
+  const oppMoveBtns = [...new Set([...(sum?.revealed ?? []).map(toID), ...(sum?.moves ?? []).map((x: any) => toID(x.name))])].slice(0, 6);
+  const revealedSet = new Set((sum?.revealed ?? []).map(toID));
   app.innerHTML = `
-  <section class="box">
-    <h2>ターン ${view.turn + 1}</h2>
+  <section class="box"><h2>ターン ${view.turn + 1}</h2>
     <p><strong>こちら</strong>：${esc(jn('species', ua.set.species))} HP ${ua.hp}/${maxhp(ua.set)} ${STATUS_JA[ua.status] !== 'なし' ? STATUS_JA[ua.status] : ''} ${esc(boostsText(ua.boosts))}
       ／ 控え：${us.mons.map((m: MonSet & any, i: number) => i === us.active ? '' : `${esc(jn('species', m.set.species))} ${m.hp}/${maxhp(m.set)}`).filter(Boolean).join('、')}</p>
     <p><strong>相手</strong>：${esc(jn('species', view.pos.sides[1].mons[them.active].set.species))} HP ${oa.hpPct}% ${STATUS_JA[oa.status] !== 'なし' ? STATUS_JA[oa.status] : ''} ${esc(boostsText(oaMon.boosts))}
@@ -245,12 +251,47 @@ function renderBattle() {
     ${view.notes.length ? `<p class="warn">${view.notes.map(esc).join('<br>')}</p>` : ''}
   </section>
   <section class="box"><h2>おすすめ（上位3手）</h2>
-    <div id="result">${searching ? '<p>計算中…</p>' : top.length ? `<table><tr><th></th><th>行動</th><th>勝率</th><th>誤差</th><th>回数</th></tr>${top.map((t: any, i: number) =>
-      `<tr><td>${i + 1}</td><td><strong>${esc(choiceLabel(t.choice))}</strong></td><td>${Math.round(t.winRate * 100)}%</td><td>±${Math.round(2 * t.se * 100)}</td><td>${t.n}</td></tr>`).join('')}</table>
+    <div id="result">${searching ? '<p>計算中…</p>' : top.length ? `<table class="big-table"><tr><th></th><th>行動</th><th>勝率</th><th>誤差</th></tr>${top.map((t: any, i: number) =>
+      `<tr><td>${i + 1}</td><td><strong>${esc(choiceLabel(t.choice))}</strong></td><td>${Math.round(t.winRate * 100)}%</td><td>±${Math.round(2 * t.se * 100)}</td></tr>`).join('')}</table>
       ${top.some((t: any) => t.closeToNext) ? '<p class="warn">勝率の差が誤差より小さい手があります（どちらを選んでも大きくは変わらない見込み）。</p>' : ''}
-      <p class="muted" id="r-time">再現 ${(result.prepMs / 1000).toFixed(1)}秒＋探索 ${(result.ms / 1000).toFixed(1)}秒（${result.iters}回）＝合計 ${(result.totalMs / 1000).toFixed(1)}秒。勝率は「この手を選んだときに勝つ見込み」の推定で、誤差は2×標準誤差。</p>
-      ${result.totalMs > result.budget + 50 ? `<p class="warn">合計が計算時間（${(result.budget / 1000).toFixed(0)}秒）を超えました。ターンの再現に時間がかかっています。</p>` : ''}` : '<p class="muted">まだ計算していません。</p>'}
-    <p><button id="b-search">計算する</button> <label class="muted">計算時間 <input id="b-time" type="number" min="2" max="40" value="${Math.round(load<number>(KEY_TIME, 10000) / 1000)}" style="width:4em">秒</label></p></div>
+      <p class="muted" id="r-time">再現 ${(result.prepMs / 1000).toFixed(1)}秒＋探索 ${(result.ms / 1000).toFixed(1)}秒（${result.iters}回）＝合計 ${(result.totalMs / 1000).toFixed(1)}秒</p>
+      ${result.totalMs > result.budget + 50 ? `<p class="warn">合計が計算時間（${(result.budget / 1000).toFixed(0)}秒）を超えました。</p>` : ''}` : '<p class="muted">まだ計算していません。</p>'}
+    </div>
+  </section>
+  <section class="box turn"><h2>このターンに起きたこと</h2>
+    <h3>① 相手の行動</h3>
+    <div class="choices">${oppMoveBtns.map(m => `<label class="btn big"><input type="radio" name="t-opp" value="move ${esc(m)}"> ${esc(jn('moves', m))}${revealedSet.has(m) ? '' : '<small>（推定）</small>'}</label>`).join('')}
+      ${oppAlive.filter((x: any) => x.i !== oaIdx).map((x: any) => `<label class="btn big"><input type="radio" name="t-opp" value="switch ${x.i}"> 交代→${esc(jn('species', doc!.setup.oppSpecies[x.i]))}</label>`).join('')}
+      <label class="btn big"><input type="radio" name="t-opp" value="none"> 動けなかった</label>
+      <label class="btn big"><input type="radio" name="t-opp" value="other"> ほかの技</label></div>
+    <p id="row-othermove" hidden><input id="t-oppmove" class="big" list="dl-oppmoves" placeholder="技の名前"><datalist id="dl-oppmoves">${Object.values(ja.moves).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist></p>
+    ${canMegaOpp ? '<p><label class="btn"><input type="checkbox" id="t-oppmega"> 相手がメガシンカした</label></p>' : ''}
+    <h3>② こちらの行動</h3>
+    <div class="choices">${ua.set.moves.map((m: string, k: number) => `<label class="btn big"><input type="radio" name="t-our" value="move ${k}"> ${esc(jn('moves', m))}</label>`).join('')}
+      ${us.mons.map((m: any, i: number) => i !== us.active && m.hp > 0 ? `<label class="btn big"><input type="radio" name="t-our" value="switch ${i}"> 交代→${esc(jn('species', m.set.species))}</label>` : '').join('')}
+      <label class="btn big"><input type="radio" name="t-our" value="none"> 動けなかった</label></div>
+    ${canMegaUs ? '<p><label class="btn"><input type="checkbox" id="t-ourmega"> メガシンカした</label></p>' : ''}
+    <div id="t-result" hidden>
+    <h3>③ 結果 <span class="muted" id="t-predmsg">（予想を入れました。画面と違う所だけ直す）</span></h3>
+    <p id="row-first" hidden><strong>先に動いた</strong>：<label class="btn big"><input type="radio" name="t-first" value="us"> こちら</label><label class="btn big"><input type="radio" name="t-first" value="them"> 相手</label></p>
+    <div class="hps">
+      <div class="hp"><span>相手 <span id="t-opphp-who">${esc(jn('species', doc!.setup.oppSpecies[oaIdx]))}</span></span><span><input id="t-opphp" class="big num" type="number" inputmode="numeric" min="0" max="100" value="${oa.hpPct}"> %</span></div>
+      ${[us.active, ...us.mons.map((_: any, i: number) => i).filter((i: number) => i !== us.active)].map((i: number) => { const m = us.mons[i]; return `<div class="hp${i === us.active ? '' : ' bench'}"><span>${esc(jn('species', m.set.species))}${i === us.active ? '' : '（控え）'}</span><span><input class="t-ourhp big num" data-i="${i}" type="number" inputmode="numeric" min="0" max="${maxhp(m.set)}" value="${m.hp}"> /${maxhp(m.set)}</span></div>`; }).join('')}
+    </div>
+    <p id="row-ouractive" hidden>こちらが倒れた後に出した体：<select id="t-ouractive" class="big">${us.mons.map((m: any, i: number) => `<option value="${i}" ${i === us.active ? 'selected' : ''}>${esc(jn('species', m.set.species))}</option>`).join('')}</select></p>
+    <p id="row-oppactive" hidden>相手が倒れた後に出した体：<select id="t-oppactive" class="big">${oppAlive.map((x: any) => `<option value="${x.i}" ${x.i === oaIdx ? 'selected' : ''}>${esc(jn('species', doc!.setup.oppSpecies[x.i]))}</option>`).join('')}</select>
+      HP <input id="t-opphp2" class="big num" type="number" inputmode="numeric" min="0" max="100" value="100">%</p>
+    <details><summary>ほかに起きたこと（急所・持ち物や特性の発動・状態異常。あったときだけ）</summary>
+    <p><strong>急所</strong>：<label class="btn"><input type="checkbox" id="t-critopp"> こちらの攻撃が急所</label> <label class="btn"><input type="checkbox" id="t-critus"> 相手の攻撃が急所</label>
+      <span class="muted">（入れなければ「分からない」として計算します）</span></p>
+    <p><strong>相手の持ち物の発動</strong> <input id="t-oppitem" list="dl-items2" placeholder="なし">
+       <datalist id="dl-items2">${(sum?.items ?? []).map((x: any) => `<option value="${esc(jn('items', x.name))}">`).join('')}${Object.values(ja.items).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist>
+       <strong>相手の特性の発動</strong> <input id="t-oppab" list="dl-ab" placeholder="なし"><datalist id="dl-ab">${Object.values(ja.abilities).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist></p>
+    <p>こちらの場の体の状態異常：<select id="t-ourstatus">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (ua.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      相手の場の体の状態異常：<select id="t-oppstatus">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (oa.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></p>
+    </details>
+    </div>
+    <p><button id="t-record" class="primary big">記録して計算</button> <span class="warn" id="t-msg"></span></p>
   </section>
   <section class="box"><h2>相手の型の推定（${esc(jn('species', doc!.setup.oppSpecies[oaIdx]))}）</h2>
     ${sum ? `<p>持ち物：${sum.items.map((x: any) => `${esc(jn('items', x.name))} ${Math.round(x.p * 100)}%`).join('、')}</p>
@@ -258,40 +299,11 @@ function renderBattle() {
     <p>技：${sum.moves.map((x: any) => `${esc(jn('moves', x.name))} ${Math.round(x.p * 100)}%`).join('、')}</p>
     ${sum.ok ? '' : '<p class="warn">どの型の候補とも合いません。入力を確かめてください。</p>'}` : ''}
   </section>
-  <section class="box"><h2>このターンに起きたこと</h2>
-    <p><strong>こちらの行動</strong>：${ua.set.moves.map((m: string, k: number) => `<label class="btn"><input type="radio" name="t-our" value="move ${k}"> ${esc(jn('moves', m))}</label>`).join(' ')}
-      ${us.mons.map((m: any, i: number) => i !== us.active && m.hp > 0 ? `<label class="btn"><input type="radio" name="t-our" value="switch ${i}"> 交代→${esc(jn('species', m.set.species))}</label>` : '').join(' ')}
-      <label class="btn"><input type="radio" name="t-our" value="none"> 動けなかった</label>
-      ${canMegaUs ? '<label><input type="checkbox" id="t-ourmega"> メガシンカした</label>' : ''}</p>
-    <p><strong>相手の行動</strong>：${(sum?.revealed ?? []).map((m: string) => `<label class="btn"><input type="radio" name="t-opp" value="move ${esc(m)}"> ${esc(jn('moves', m))}</label>`).join(' ')}
-      <label class="btn"><input type="radio" name="t-opp" value="other"> ほかの技</label> <input id="t-oppmove" list="dl-oppmoves" size="12" placeholder="技の名前">
-      <datalist id="dl-oppmoves">${(sum?.moves ?? []).map((x: any) => `<option value="${esc(jn('moves', x.name))}">`).join('')}${Object.values(ja.moves).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist>
-      ${oppAlive.filter((x: any) => x.i !== oaIdx).map((x: any) => `<label class="btn"><input type="radio" name="t-opp" value="switch ${x.i}"> 交代→${esc(jn('species', doc!.setup.oppSpecies[x.i]))}</label>`).join(' ')}
-      <label class="btn"><input type="radio" name="t-opp" value="none"> 動けなかった</label>
-      ${canMegaOpp ? '<label><input type="checkbox" id="t-oppmega"> 相手がメガシンカした</label>' : ''}</p>
-    <p id="row-first" hidden><strong>先に動いた</strong>：<label class="btn"><input type="radio" name="t-first" value="us"> こちら</label> <label class="btn"><input type="radio" name="t-first" value="them"> 相手</label></p>
-    <h3>ターンの後のHP</h3>
-    <p>こちら：${us.mons.map((m: any, i: number) => `${esc(jn('species', m.set.species))}${i === us.active ? '（場）' : ''} <input class="t-ourhp" data-i="${i}" type="number" min="0" max="${maxhp(m.set)}" value="${m.hp}" style="width:4.5em">`).join(' ')}
-      ／ 相手：${esc(jn('species', doc!.setup.oppSpecies[oaIdx]))}<span id="t-opphp-who"></span> <input id="t-opphp" type="number" min="0" max="100" value="${oa.hpPct}" style="width:4em">%</p>
-    <p id="row-ouractive" hidden>こちらが倒れた後に出した体：<select id="t-ouractive">${us.mons.map((m: any, i: number) => `<option value="${i}" ${i === us.active ? 'selected' : ''}>${esc(jn('species', m.set.species))}</option>`).join('')}</select></p>
-    <p id="row-oppactive" hidden>相手が倒れた後に出した体：<select id="t-oppactive">${oppAlive.map((x: any) => `<option value="${x.i}" ${x.i === oaIdx ? 'selected' : ''}>${esc(jn('species', doc!.setup.oppSpecies[x.i]))}</option>`).join('')}</select>
-      HP <input id="t-opphp2" type="number" min="0" max="100" value="100" style="width:4em">%</p>
-    <details><summary>ほかに起きたこと（急所・持ち物や特性の発動・状態異常。あったときだけ）</summary>
-    <p><strong>急所</strong>：<label><input type="checkbox" id="t-critopp"> こちらの攻撃が急所</label> <label><input type="checkbox" id="t-critus"> 相手の攻撃が急所</label>
-      <span class="muted">（入れなければ「分からない」として計算します）</span></p>
-    <p><strong>相手の持ち物の発動</strong> <input id="t-oppitem" list="dl-items2" size="12" placeholder="なし">
-       <datalist id="dl-items2">${(sum?.items ?? []).map((x: any) => `<option value="${esc(jn('items', x.name))}">`).join('')}${Object.values(ja.items).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist>
-       <strong>相手の特性の発動</strong> <input id="t-oppab" list="dl-ab" size="12" placeholder="なし"><datalist id="dl-ab">${Object.values(ja.abilities).map(v => `<option value="${esc(v as string)}">`).join('')}</datalist></p>
-    <p>こちらの場の体の状態異常：<select id="t-ourstatus">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (ua.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select>
-      相手の場の体の状態異常：<select id="t-oppstatus">${Object.entries(STATUS_JA).map(([k, v]) => `<option value="${k}" ${k === (oa.status || '') ? 'selected' : ''}>${v}</option>`).join('')}</select>
-      <span class="muted">（変わらなければそのまま。交代したときは、出てきた体の状態異常）</span></p>
-    </details>
-    <p><button id="t-record" class="primary">記録して計算</button> <span class="warn" id="t-msg"></span></p>
-  </section>
-  <section class="box"><h2>今の状態（画面と違えば直す）</h2>${stateForm()}
-    <p><button id="v-apply">状態を直して計算</button></p></section>
+  <details class="box"><summary>今の状態（能力ランク・天気・まきびし等。画面と違うときだけ直す）</summary>${stateForm()}
+    <p><button id="v-apply">状態を直して計算</button></p></details>
   <section class="box"><h2>記録</h2>
     <p class="muted">${esc(doc!.partyName)}、${doc!.turns.length} ターン記録済み。</p>
+    <p><button id="b-search">計算し直す</button> <label class="muted">計算時間 <input id="b-time" type="number" min="2" max="40" value="${Math.round(load<number>(KEY_TIME, 10000) / 1000)}" style="width:4em">秒</label></p>
     <p><button id="b-undo">1ターン取り消す</button> <button id="b-end">対戦を終える（記録を保存）</button> <button id="b-discard">保存せずに終える</button> <span>${esc(message)}</span></p>
   </section>`;
   bindBattle();
@@ -374,7 +386,7 @@ function bindBattle() {
     const oppTo = opp.startsWith('switch') ? Number(opp.split(' ')[1]) : oppActiveIdx();
     const who = document.getElementById('t-opphp-who')!;
     const prevWho = who.dataset.to;
-    who.textContent = oppTo !== oppActiveIdx() ? `（交代後：${jn('species', doc!.setup.oppSpecies[oppTo])}）` : '';
+    who.textContent = jn('species', doc!.setup.oppSpecies[oppTo]) + (oppTo !== oppActiveIdx() ? '（交代後）' : '');
     if (prevWho !== String(oppTo)) { (document.getElementById('t-opphp') as HTMLInputElement).value = String(view.opp[oppTo].hpPct); who.dataset.to = String(oppTo); }
     const oppFainted = Number((document.getElementById('t-opphp') as HTMLInputElement).value) <= 0;
     (document.getElementById('row-oppactive') as HTMLElement).hidden = !oppFainted;
@@ -382,8 +394,54 @@ function bindBattle() {
     else if (Number(selOpp.value) === oppTo) { const o = [...selOpp.options].find(x => Number(x.value) !== oppTo); if (o) selOpp.value = o.value; }
   };
   document.querySelectorAll<HTMLInputElement>('input[name="t-our"], input[name="t-opp"], .t-ourhp, #t-opphp').forEach(x => { x.addEventListener('change', updateRows); x.addEventListener('input', updateRows); });
-  (document.getElementById('t-oppmove') as HTMLInputElement).addEventListener('focus', () => { const o = document.querySelector('input[name="t-opp"][value="other"]') as HTMLInputElement; o.checked = true; updateRows(); });
   updateRows();
+  // 手で直した欄には印をつけ、予想で上書きしない
+  document.querySelectorAll<HTMLInputElement>('.t-ourhp, #t-opphp, #t-opphp2, input[name="t-first"]').forEach(x => x.addEventListener('input', () => { x.dataset.touched = '1'; if (x.name === 't-first') document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(y => { y.dataset.touched = '1'; }); }));
+  document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(x => x.addEventListener('change', () => document.querySelectorAll<HTMLInputElement>('input[name="t-first"]').forEach(y => { y.dataset.touched = '1'; })));
+  // 両方の行動が決まったら、結果を予想して欄に入れる
+  let predGen = 0;
+  const actionsNow = (): { ours: TurnInput['ours']; opp: TurnInput['opp'] } | null => {
+    const our = radio('t-our'), opp = radio('t-opp');
+    if (!our || !opp) return null;
+    const [ok, ov] = our.split(' ');
+    const ours: TurnInput['ours'] = ok === 'none' ? { kind: 'none' } : ok === 'switch' ? { kind: 'switch', to: Number(ov) } : { kind: 'move', slot: Number(ov), mega: !!(document.getElementById('t-ourmega') as HTMLInputElement | null)?.checked };
+    let oppAct: TurnInput['opp'];
+    if (opp === 'none') oppAct = { kind: 'none' };
+    else if (opp.startsWith('switch')) oppAct = { kind: 'switch', to: Number(opp.split(' ')[1]) };
+    else {
+      const mv = opp === 'other' ? resolve('moves', (document.getElementById('t-oppmove') as HTMLInputElement).value) : opp.slice(5);
+      if (!mv) return null;
+      oppAct = { kind: 'move', move: mv, mega: !!(document.getElementById('t-oppmega') as HTMLInputElement | null)?.checked };
+    }
+    return { ours, opp: oppAct };
+  };
+  const predictNow = async () => {
+    (document.getElementById('row-othermove') as HTMLElement).hidden = radio('t-opp') !== 'other';
+    const acts = actionsNow();
+    if (!acts) return;
+    const gen = ++predGen;
+    const box = document.getElementById('t-result') as HTMLElement;
+    box.hidden = false;
+    const msg = document.getElementById('t-predmsg')!;
+    msg.textContent = '（予想しています…）';
+    let pred: any = null;
+    try { pred = (await ask({ type: 'predict', input: acts })).pred; } catch { pred = null; }
+    if (gen !== predGen || !document.getElementById('t-result')) return;
+    if (!pred) { msg.textContent = '（予想できませんでした。画面の数字を入れてください）'; updateRows(); return; }
+    const setIf = (el: HTMLInputElement | null, v: number) => { if (el && !el.dataset.touched) el.value = String(v); };
+    pred.ourHps.forEach((h: number, i: number) => setIf(document.querySelector(`.t-ourhp[data-i="${i}"]`), h));
+    updateRows();
+    // 相手：交代先や、倒れた後に出した体なら、その体の%
+    const oppTo = acts.opp.kind === 'switch' ? acts.opp.to : oppActiveIdx();
+    if (pred.oppActive === oppTo) setIf(document.getElementById('t-opphp') as HTMLInputElement, pred.oppHpPct);
+    else { setIf(document.getElementById('t-opphp') as HTMLInputElement, 0); setIf(document.getElementById('t-opphp2') as HTMLInputElement, pred.oppHpPct); }
+    updateRows();
+    if (pred.oppActive !== oppTo) { const sel = document.getElementById('t-oppactive') as HTMLSelectElement; if ([...sel.options].some(o => Number(o.value) === pred.oppActive)) sel.value = String(pred.oppActive); }
+    if (pred.first) { const r = document.querySelector(`input[name="t-first"][value="${pred.first}"]`) as HTMLInputElement | null; if (r && !r.dataset.touched) r.checked = true; }
+    msg.textContent = `（予想を入れました。画面と違う所だけ直す。相手のHPの予想の幅 ${pred.oppHpRange[0]}〜${pred.oppHpRange[1]}%）`;
+  };
+  document.querySelectorAll<HTMLInputElement>('input[name="t-our"], input[name="t-opp"], #t-ourmega, #t-oppmega').forEach(x => x.addEventListener('change', predictNow));
+  (document.getElementById('t-oppmove') as HTMLInputElement).addEventListener('change', predictNow);
   for (const id of ['t-ourstatus', 't-oppstatus']) (document.getElementById(id) as HTMLSelectElement).addEventListener('change', e => { (e.target as HTMLElement).dataset.touched = '1'; });
   document.getElementById('b-end')!.onclick = async () => {
     if (!confirm('対戦を終えて、記録を保存しますか？（この画面の記録は消え、準備の画面に戻ります）')) return;

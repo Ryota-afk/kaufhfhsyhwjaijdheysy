@@ -38,6 +38,8 @@ self.onmessage = async (ev: MessageEvent) => {
     } else if (msg.type === 'record') {
       an!.record(msg.input);
       (self as any).postMessage({ type: 'view', view: view() });
+    } else if (msg.type === 'predict') {
+      (self as any).postMessage({ type: 'predict', pred: an!.predict(msg.input) });
     } else if (msg.type === 'edit') {
       an!.applyVisible(an!.pos, msg.visible);
       (self as any).postMessage({ type: 'view', view: view() });

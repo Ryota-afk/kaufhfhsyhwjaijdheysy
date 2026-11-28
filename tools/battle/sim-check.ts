@@ -35,6 +35,7 @@ let st = SEED * 1000 + 7; const rand = () => { st = (st * 16807) % 2147483647; r
 const pick3 = () => [0, 1, 2, 3, 4, 5].sort(() => rand() - 0.5).slice(0, 3);
 const setOf = (m: any) => ({ species: m.species, item: toID(m.item), ability: toID(m.ability), nature: m.nature, evs: m.evs, moves: m.moves.map(toID) });
 
+const pred = { n: 0, ourHp: 0, ourAll: 0, oppExact: 0, opp5: 0, oppDiff: [] as number[], first: 0, firstN: 0, active: 0, status: 0, all: 0 };
 let turns = 0, lost = 0, hpBad = 0, detBad = 0, searchBad = 0, exact = 0, games = 0;
 const scores: number[] = [];
 const problems: string[] = [];
@@ -114,6 +115,21 @@ for (let g = 0; g < GAMES; g++) {
       console.log('本当の素早さ', b.sides.map((sd: any) => `${sd.active[0].name} ${sp(sd.active[0])} ${JSON.stringify(sd.active[0].boosts)} ${sd.active[0].status} ${sd.active[0].item}`).join(' / '), 'TR', !!b.field.pseudoWeather.trickroom);
       console.log('記録係の始めの盤面', JSON.stringify(an.pos.sides.map(x => ({ a: x.mons[x.active].set.species, b: x.mons[x.active].boosts, st: x.mons[x.active].status, mega: x.mons[x.active].mega }))), JSON.stringify(an.pos.field));
     }
+    // PREDICT=1：記録の前に、画面に先に入れる予想を出して、本当の結果と比べる
+    if (process.env.PREDICT) {
+      const pr = an.predict({ ours: input.ours, opp: input.opp });
+      if (pr) {
+        pred.n++;
+        if (pr.ourHps[input.after.ourActive] === input.after.ourHp) pred.ourHp++;
+        if (pr.ourHps.every((h: number, k: number) => h === (input.after.ourHps?.[k] ?? h))) pred.ourAll++;
+        const d = Math.abs(pr.oppHpPct - input.after.oppHpPct); pred.oppDiff.push(d); if (d === 0) pred.oppExact++; if (d <= 5) pred.opp5++;
+        if (input.first) { pred.firstN++; if (pr.first === input.first) pred.first++; }
+        if (pr.ourActive === input.after.ourActive && pr.oppActive === input.after.oppActive) pred.active++;
+        if ((pr.ourStatus || '') === input.after.ourStatus && (pr.oppStatus || '') === input.after.oppStatus) pred.status++;
+        const allOk = pr.ourHps.every((h: number, k: number) => h === (input.after.ourHps?.[k] ?? h)) && d === 0 && (!input.first || pr.first === input.first) && pr.ourActive === input.after.ourActive && pr.oppActive === input.after.oppActive && (pr.ourStatus || '') === input.after.ourStatus && (pr.oppStatus || '') === input.after.oppStatus;
+        if (allOk) pred.all++;
+      }
+    }
     logDoc.turns.push({ input: JSON.parse(JSON.stringify(input)) });
     const res = an.record(input);
     turns++; scores.push(res.score); if (res.score === 0) exact++;
@@ -151,6 +167,11 @@ for (let g = 0; g < GAMES; g++) {
     writeFileSync(`${process.env.LOGDIR}/logs/${logDoc.id}.json`, JSON.stringify(logDoc));
     writeFileSync(`${process.env.LOGDIR}/truth/${logDoc.id}.json`, JSON.stringify({ rank: team.rank, oppIdx, oppSets: oppIdx.map(i => team.mons[i]) }));
   }
+}
+if (process.env.PREDICT && pred.n) {
+  const pc = (x: number, n = pred.n) => `${(x / n * 100).toFixed(0)}%`;
+  const od = [...pred.oppDiff].sort((a, b) => a - b);
+  console.log(`予想（${pred.n}ターン）：こちらの場の体のHPが一致 ${pc(pred.ourHp)}、こちらの3体のHPが全部一致 ${pc(pred.ourAll)}、相手のHP%が一致 ${pc(pred.oppExact)}・5以内 ${pc(pred.opp5)}（差の中央値 ${od[Math.floor(od.length / 2)]}）、先に動いた側が一致 ${pc(pred.first, pred.firstN)}（${pred.firstN}ターン）、場の体が一致 ${pc(pred.active)}、状態異常が一致 ${pc(pred.status)}、全部一致（何も直さなくてよい）${pc(pred.all)}`);
 }
 const sorted = [...scores].sort((a, b) => a - b);
 console.log(`試合 ${games}、ターン ${turns}`);

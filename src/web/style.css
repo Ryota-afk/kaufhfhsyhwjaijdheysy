@@ -22,3 +22,17 @@ label.btn { display: inline-block; border: 1px solid var(--line); border-radius:
 label.btn:has(input:checked) { background: #dbeafe; border-color: #3b82f6; }
 @media (prefers-color-scheme: dark) { label.btn:has(input:checked) { background: #1e3a5f; } }
 .row { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 対戦中の入力：押しやすい大きさ */
+.turn h3 { margin: 10px 0 4px; font-size: 1.05rem; }
+.choices { display: flex; flex-wrap: wrap; gap: 6px; }
+label.btn.big { font-size: 1.1rem; padding: 10px 14px; min-width: 7em; text-align: center; }
+label.btn.big input[type=radio] { display: none; }
+label.btn.big small { font-size: 0.75em; color: var(--muted); }
+input.big, select.big { font-size: 1.2rem; padding: 6px 8px; }
+input.big.num { width: 4.5em; text-align: right; }
+button.big { font-size: 1.2rem; padding: 10px 28px; }
+.hps { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0; }
+.hps .hp { display: flex; flex-direction: column; gap: 2px; font-size: 1rem; }
+.hps .hp.bench { opacity: 0.75; }
+.big-table td, .big-table th { font-size: 1.1rem; padding: 6px 10px; }
+details.box > summary { cursor: pointer; font-weight: bold; }

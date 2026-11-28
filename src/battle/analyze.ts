@@ -280,6 +280,63 @@ export function makeAnalyzer(PS: any, FORMAT: string, basePriors: { species: Rec
     }
     knockedPending: number | null = null;
 
+    /**
+     * このターンの結果の予想（入力の欄に先に入れるため）。記録係の今の盤面から、相手の型を「いちばんありそうな型」にして、
+     * 両者の行動で seeds 通りの乱数で打ち、HP は真ん中の値、場の体・状態異常・先に動いた側はいちばん多いものを返す。
+     * 反動・さめはだ・ゴツゴツメット・ステルスロック・いのちのたま・たべのこし等は Showdown が計算する。推定の状態は変えない。
+     */
+    predict(t: { ours: TurnInput['ours']; opp: TurnInput['opp'] }, seeds = 24) {
+      const start = this.pos;
+      const oppActiveIdx = this.oppOrder[start.sides[1].active];
+      const oppMove = t.opp.kind === 'move' ? t.opp.move : undefined;
+      const sw = t.opp.kind === 'switch' ? t.opp.to : -1;
+      const order = [oppActiveIdx, ...(sw >= 0 ? [sw] : []), ...this.oppTrio().filter(i => i !== oppActiveIdx && i !== sw)].slice(0, 3);
+      // まだ見えていない体へ交代するときも、その体の盤面を作れるように一時的に見えたことにする（終わったら戻す）
+      const seenBefore = sw >= 0 ? this.opp[sw].seen : true;
+      if (sw >= 0) this.opp[sw].seen = true;
+      try {
+        const pos: Position = { ...start, sides: [start.sides[0], this.oppSide(order, start, i => this.mapSet(i, i === oppActiveIdx ? oppMove : undefined))] };
+        const firsts: string[] = [], ourActs: number[] = [], oppActs: number[] = [], ourSt: string[] = [], oppSt: string[] = [];
+        const ourHps: number[][] = start.sides[0].mons.map(() => []), oppPcts: number[] = [];
+        for (let seed = 1; seed <= seeds; seed++) {
+          let r;
+          try { r = new Runner(pos, seed); } catch { break; }
+          const legal0 = r.legalActions(0), legal1 = r.legalActions(1);
+          const same = (x: any, y: any) => x.kind === y.kind && (x.kind === 'switch' ? x.to === y.to : x.slot === y.slot && !!x.mega === !!y.mega);
+          const a0 = t.ours.kind === 'none' ? null : legal0.find((x: any) => same(x, t.ours)) ?? null;
+          let a1: Action | null = null;
+          if (t.opp.kind === 'switch') a1 = legal1.find((x: any) => x.kind === 'switch' && x.to === order.indexOf(sw)) ?? null;
+          else if (t.opp.kind === 'move') {
+            const set = pos.sides[1].mons[pos.sides[1].active].set;
+            const k = set.moves.findIndex(m => toID(m) === toID((t.opp as any).move));
+            a1 = legal1.find((x: any) => x.kind === 'move' && x.slot === Math.max(0, k) && !!x.mega === !!(t.opp as any).mega) ?? legal1.find((x: any) => x.kind === 'move' && x.slot === Math.max(0, k)) ?? null;
+          }
+          try { r.play(a0, a1, 6); } catch { continue; }
+          const log: string[] = r.battle.log;
+          const f = log.find(l => /^\|move\|p[12]a:/.test(l) && !l.includes('[from]'));
+          if (f) firsts.push(f.startsWith('|move|p2a') ? 'them' : 'us');
+          const p = r.toPosition();
+          ourActs.push(p.sides[0].active); oppActs.push(order[p.sides[1].active]);
+          p.sides[0].mons.forEach((m, k) => ourHps[k].push(m.hp));
+          ourSt.push(p.sides[0].mons[p.sides[0].active].status || '');
+          const om = p.sides[1].mons[p.sides[1].active];
+          oppPcts.push(shownPercent(om.hp, maxhpOf(om.set))); oppSt.push(om.status || '');
+        }
+        if (!oppPcts.length) return null;
+        const median = (xs: number[]) => { const v = [...xs].sort((a, b) => a - b); return v[Math.floor(v.length / 2)]; };
+        const mode = <T,>(xs: T[]): T => { const c = new Map<T, number>(); for (const x of xs) c.set(x, (c.get(x) ?? 0) + 1); return [...c].sort((a, b) => b[1] - a[1])[0][0]; };
+        const firstUs = firsts.filter(x => x === 'us').length;
+        return {
+          first: firsts.length ? (firstUs * 2 >= firsts.length ? 'us' : 'them') as 'us' | 'them' : undefined,
+          firstSure: firsts.length ? Math.max(firstUs, firsts.length - firstUs) / firsts.length : 0,
+          ourHps: ourHps.map(median), ourActive: mode(ourActs), ourStatus: mode(ourSt), oppActive: mode(oppActs), oppHpPct: median(oppPcts), oppStatus: mode(oppSt),
+          oppHpRange: [Math.min(...oppPcts), Math.max(...oppPcts)] as [number, number], n: oppPcts.length,
+        };
+      } finally {
+        if (sw >= 0) this.opp[sw].seen = seenBefore;
+      }
+    }
+
     /** 画面に見える状態で上書きする（残りターンは分からないので、同じものが続いていれば再現の値、新しければ5）。 */
     applyVisible(pos: Position, v: VisibleState) {
       if (v.boosts) v.boosts.forEach((b, si) => { const sd = pos.sides[si]; const m = sd.mons[sd.active]; const nb: any = {}; for (const [k, x] of Object.entries(b)) if (x) nb[k] = x; if (Object.keys(nb).length) m.boosts = nb; else delete m.boosts; });
